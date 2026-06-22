@@ -12,7 +12,6 @@ from urllib.parse import urlparse
 from flask import Blueprint, current_app, jsonify, request, send_file
 from werkzeug.utils import secure_filename
 
-
 logger = logging.getLogger(__name__)
 
 plugin_manage_bp = Blueprint("pluginmanager_api", __name__)
@@ -285,6 +284,7 @@ def _get_plugin_git_branch(plugin_dir):
 
 def _get_plugin_local_commit(plugin_dir):
     try:
+        logger.warning("LOCAL-COMMIT git -C %s rev-parse HEAD", plugin_dir)
         result = subprocess.run(
             ["git", "-C", plugin_dir, "rev-parse", "HEAD"],
             capture_output=True,
@@ -647,13 +647,25 @@ def check_updates():
         plugin_dir = os.path.join(_plugins_dir(), plugin_id)
         git_dir = os.path.join(plugin_dir, ".git")
 
+        logger.warning(
+            "CHECK-UPDATES plugin_id=%s plugin_dir=%s git_dir_exists=%s",
+            plugin_id,
+            plugin_dir,
+            os.path.isdir(git_dir),
+        )
+
         if not os.path.isdir(git_dir):
             return jsonify({"success": False, "error": "Plugin is not a git repository"}), 400
 
         local_commit = _get_plugin_local_commit(plugin_dir)
         if not local_commit:
-            logger.warning("Could not get local commit for %s", plugin_id)
-            return jsonify({"success": False, "error": "Could not determine current version"}), 500
+            logger.warning("Could not get local commit for %s from %s", plugin_id, plugin_dir)
+            return jsonify(
+                {
+                    "success": False,
+                    "error": f"Could not determine current version for {plugin_id} at {plugin_dir}",
+                }
+            ), 500
 
         remote_url = _get_plugin_remote_url(plugin_dir)
         if not remote_url:

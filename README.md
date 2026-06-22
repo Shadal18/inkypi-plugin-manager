@@ -1,10 +1,10 @@
-# InkyPi-Plugin-PluginManager
+# InkyPi-Plugin-Manager
 
-![Example of InkyPi-Plugin-PluginManager](./screenshots/example-1.png)
+![Example of InkyPi-Plugin-Manager](./screenshots/example-1.png)
 
-![Example of InkyPi-Plugin-PluginManager](./screenshots/example-2.png)
+![Example of InkyPi-Plugin-Manager](./screenshots/example-2.png)
 
-_InkyPi-Plugin-PluginManager_ is a plugin for [InkyPi](https://github.com/fatihak/InkyPi) that provides a web-based interface for managing third-party plugins.
+_InkyPi-Plugin-Manager_ is a plugin for [InkyPi](https://github.com/fatihak/InkyPi) that provides a web-based interface for managing third-party plugins.
 
 ## What it does
 
