@@ -48,7 +48,25 @@ Install the plugin using the InkyPi CLI:
 inkypi plugin install plugin_manager https://github.com/shadal18/inkypi-plugin-manager
 ```
 
-### Step 2: Patch Core Files
+### Step 2: Mark the plugin directory as safe for Git
+
+Depending on how InkyPi is installed, the service may run under a different user than the one that installed the plugin. In that case, Git can refuse to read the repository with a “detected dubious ownership in repository” error.
+
+Add the plugin directory to Git’s system-wide `safe.directory` list:
+
+```bash
+sudo git config --system --add safe.directory /home/pi/InkyPi/src/plugins/plugin_manager
+```
+
+If your InkyPi install lives somewhere else, adjust the path accordingly.
+
+### Step 3: Restart InkyPi
+
+```bash
+sudo systemctl restart inkypi.service
+```
+
+### Step 4: Patch Core Files
 
 After installation, Plugin Manager requires a small patch to core InkyPi files so the plugin API blueprint can be registered correctly.
 
