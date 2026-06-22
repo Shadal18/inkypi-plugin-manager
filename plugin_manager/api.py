@@ -277,8 +277,16 @@ def _get_plugin_git_branch(plugin_dir):
         )
         if result.returncode == 0:
             return result.stdout.strip()
+        logger.warning(
+            "Could not get git branch for %s (returncode=%s stdout=%r stderr=%r)",
+            plugin_dir,
+            result.returncode,
+            result.stdout,
+            result.stderr,
+        )
         return None
     except Exception:
+        logger.exception("Exception while getting git branch for %s", plugin_dir)
         return None
 
 
@@ -293,8 +301,17 @@ def _get_plugin_local_commit(plugin_dir):
         )
         if result.returncode == 0:
             return result.stdout.strip()
+
+        logger.warning(
+            "Could not get local commit for %s (returncode=%s stdout=%r stderr=%r)",
+            plugin_dir,
+            result.returncode,
+            result.stdout,
+            result.stderr,
+        )
         return None
     except Exception:
+        logger.exception("Exception while getting local commit for %s", plugin_dir)
         return None
 
 
@@ -308,8 +325,17 @@ def _get_plugin_remote_url(plugin_dir):
         )
         if result.returncode == 0:
             return result.stdout.strip()
+
+        logger.warning(
+            "Could not get remote URL for %s (returncode=%s stdout=%r stderr=%r)",
+            plugin_dir,
+            result.returncode,
+            result.stdout,
+            result.stderr,
+        )
         return None
     except Exception:
+        logger.exception("Exception while getting remote URL for %s", plugin_dir)
         return None
 
 
