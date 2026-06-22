@@ -1,0 +1,518 @@
+#!/usr/bin/env bash
+set -e
+
+
+if [[ -z "${PROJECT_DIR:-}" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+    PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+fi
+
+
+PLUGINS_DIR="$PROJECT_DIR/src/plugins"
+
+
+command="${1:-}"
+shift || true
+
+
+usage() {
+    echo ""
+    echo "Plugin commands:"
+    echo "  inkypi plugin install <plugin_id> <git_repository_url> [branch]"
+    echo "  inkypi plugin install-from-url <git_repository_url> [branch]"
+    echo "  inkypi plugin install-local <zip_file_path>"
+    echo "  inkypi plugin uninstall <plugin_id>"
+    echo "  inkypi plugin update-all"
+    echo "  inkypi plugin convert-unmanaged <plugin_id> <git_repository_url> [branch]"
+    echo "  inkypi plugin list"
+    echo ""
+}
+
+
+require_plugins_dir() {
+    if [[ ! -d "$PLUGINS_DIR" ]]; then
+        echo "Plugins directory does not exist: $PLUGINS_DIR"
+        exit 1
+    fi
+}
+
+
+try_remove_plugin_dir() {
+    local dir="$1"
+    [[ -z "$dir" ]] && return 1
+    if [[ -n "${APPNAME:-}" ]]; then
+        sudo chown -R "$(whoami)":"$(whoami)" "$dir" 2>/dev/null || true
+    fi
+    chmod -R u+rw "$dir" 2>/dev/null || true
+    rm -rf "$dir" 2>/dev/null || true
+    if [[ -d "$dir" ]]; then
+        echo "[ERROR] Could not remove directory (permission denied): $dir"
+        echo "Try from a terminal: sudo rm -rf $dir"
+        exit 1
+    fi
+}
+
+
+normalize_branch() {
+    local branch="${1:-}"
+    branch="$(printf '%s' "$branch" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    case "$branch" in
+        ""|"default"|"default branch"|"repo default"|"default repo"|"Default branch"|"Default repo")
+            echo ""
+            ;;
+        *)
+            echo "$branch"
+            ;;
+    esac
+}
+
+
+manual_restart_notice() {
+    echo "[INFO] Done"
+    echo "[INFO] Newly installed or updated plugins will not be available until InkyPi has been restarted."
+    echo "[INFO] Restart InkyPi from the button when you're ready, or install more plugins first."
+}
+
+
+get_repo_default_branch() {
+    local repo_dir="$1"
+    git -C "$repo_dir" symbolic-ref --short HEAD 2>/dev/null || echo "main"
+}
+
+
+write_repository_to_plugin_info() {
+    local dest_dir="$1"
+    local repo_url="$2"
+
+    if [[ -f "$dest_dir/plugin-info.json" ]] && command -v jq &>/dev/null; then
+        jq --arg url "$repo_url" '.repository = $url' "$dest_dir/plugin-info.json" > "$dest_dir/plugin-info.json.tmp" \
+            && mv "$dest_dir/plugin-info.json.tmp" "$dest_dir/plugin-info.json"
+    fi
+}
+
+
+install_requirements_if_present() {
+    local dest_dir="$1"
+    local req_file="$dest_dir/requirements.txt"
+
+    if [[ -f "$req_file" ]]; then
+        if [[ -n "${VENV_PATH:-}" ]] && [[ -d "$VENV_PATH" ]]; then
+            echo "[INFO] requirements.txt found, installing dependencies..."
+            # shellcheck disable=SC1090
+            source "$VENV_PATH/bin/activate"
+            pip install -r "$req_file"
+            deactivate
+            echo "[INFO] Dependencies installed"
+        else
+            echo "[INFO] requirements.txt found but VENV_PATH not set or missing, skipping dependency install"
+        fi
+    else
+        echo "[INFO] No requirements.txt found, skipping dependency install"
+    fi
+}
+
+
+install_plugin() {
+    if [[ $# -lt 2 || $# -gt 3 ]]; then
+        usage
+        exit 1
+    fi
+
+    local PLUGIN_ID="$1"
+    local REPO_URL="$2"
+    local BRANCH
+    BRANCH="$(normalize_branch "${3:-}")"
+    local DEST_DIR="$PLUGINS_DIR/$PLUGIN_ID"
+
+    require_plugins_dir
+
+    echo "[INFO] Installing plugin '$PLUGIN_ID' from $REPO_URL"
+    if [[ -n "$BRANCH" ]]; then
+        echo "[INFO] Using branch: $BRANCH"
+    else
+        echo "[INFO] Using repository default branch"
+    fi
+
+    if [[ -d "$DEST_DIR" ]]; then
+        try_remove_plugin_dir "$DEST_DIR"
+    fi
+    mkdir -p "$DEST_DIR"
+
+    if [[ -n "$BRANCH" ]]; then
+        git clone --depth 1 --branch "$BRANCH" --filter=blob:none --sparse "$REPO_URL" "$DEST_DIR" &>/dev/null || {
+            echo "[ERROR] Failed to clone repository: $REPO_URL"
+            try_remove_plugin_dir "$DEST_DIR"
+            exit 1
+        }
+    else
+        git clone --depth 1 --filter=blob:none --sparse "$REPO_URL" "$DEST_DIR" &>/dev/null || {
+            echo "[ERROR] Failed to clone repository: $REPO_URL"
+            try_remove_plugin_dir "$DEST_DIR"
+            exit 1
+        }
+    fi
+
+    local DEFAULT_BRANCH
+    DEFAULT_BRANCH="$(get_repo_default_branch "$DEST_DIR")"
+
+    if ! git -C "$DEST_DIR" ls-tree --name-only "$DEFAULT_BRANCH" | grep -qx "$PLUGIN_ID"; then
+        echo "[ERROR] Plugin '$PLUGIN_ID' does not exist in the repo"
+        try_remove_plugin_dir "$DEST_DIR"
+        exit 1
+    fi
+
+    (
+        cd "$DEST_DIR"
+        git sparse-checkout set "$PLUGIN_ID" &>/dev/null
+        shopt -s dotglob
+        mv "$PLUGIN_ID"/* ./
+        rm -rf "$PLUGIN_ID"
+    )
+
+    echo "[INFO] Plugin copied to $DEST_DIR"
+
+    write_repository_to_plugin_info "$DEST_DIR" "$REPO_URL"
+    install_requirements_if_present "$DEST_DIR"
+
+    if [[ "${PM_AUTO_MODE:-}" == "1" ]]; then
+        echo "[INFO] Done"
+    else
+        manual_restart_notice
+    fi
+}
+
+
+install_from_url() {
+    if [[ $# -lt 1 ]]; then
+        usage
+        exit 1
+    fi
+
+    local REPO_URL="$1"
+    shift || true
+    local BRANCH
+    BRANCH="$(normalize_branch "${1:-}")"
+
+    require_plugins_dir
+
+    if ! command -v jq &>/dev/null; then
+        echo "[ERROR] jq is required for install-from-url. Please install jq."
+        exit 1
+    fi
+
+    local TMP_DIR
+    TMP_DIR="$(mktemp -d)"
+    trap 'rm -rf "$TMP_DIR"' EXIT
+
+    echo "[INFO] Cloning repository to discover plugin..."
+    echo "[INFO] Repository: $REPO_URL"
+
+    if [[ -n "$BRANCH" ]]; then
+        echo "[INFO] Branch: $BRANCH"
+        git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$TMP_DIR" &>/dev/null || {
+            echo "[ERROR] Failed to clone repository: $REPO_URL"
+            exit 1
+        }
+    else
+        echo "[INFO] Branch: repository default"
+        git clone --depth 1 "$REPO_URL" "$TMP_DIR" &>/dev/null || {
+            echo "[ERROR] Failed to clone repository: $REPO_URL"
+            exit 1
+        }
+    fi
+
+    local PLUGIN_FOLDER=""
+    local FOUND_COUNT=0
+
+    while IFS= read -r info_file; do
+        local dir
+        dir="$(dirname "$info_file")"
+        local dirname
+        dirname="$(basename "$dir")"
+        local plugin_id
+        plugin_id="$(jq -r '.id // empty' "$info_file")"
+
+        if [[ -n "$plugin_id" ]] && [[ "$plugin_id" == "$dirname" ]]; then
+            PLUGIN_FOLDER="$dirname"
+            (( FOUND_COUNT++ )) || true
+            echo "[INFO] Found plugin candidate: $PLUGIN_FOLDER"
+        fi
+    done < <(find "$TMP_DIR" -type f -name "plugin-info.json" | sort)
+
+    if [[ $FOUND_COUNT -eq 0 ]]; then
+        echo "[ERROR] No valid InkyPi plugin found in repository (need a folder containing plugin-info.json with id matching the folder name)"
+        exit 1
+    fi
+
+    if [[ $FOUND_COUNT -gt 1 ]]; then
+        echo "[ERROR] Multiple plugin folders found in repository; use 'install <plugin_id> <url>' to specify which one"
+        exit 1
+    fi
+
+    if [[ -n "$BRANCH" ]]; then
+        install_plugin "$PLUGIN_FOLDER" "$REPO_URL" "$BRANCH"
+    else
+        install_plugin "$PLUGIN_FOLDER" "$REPO_URL"
+    fi
+}
+
+
+install_local() {
+    if [[ $# -ne 1 ]]; then
+        usage
+        exit 1
+    fi
+
+    local ZIP_PATH="$1"
+
+    require_plugins_dir
+
+    if [[ ! -f "$ZIP_PATH" ]]; then
+        echo "[ERROR] ZIP file not found: $ZIP_PATH"
+        exit 1
+    fi
+
+    if ! command -v unzip &>/dev/null; then
+        echo "[ERROR] unzip is required for local ZIP installation"
+        exit 1
+    fi
+
+    if ! command -v jq &>/dev/null; then
+        echo "[ERROR] jq is required for local ZIP installation"
+        exit 1
+    fi
+
+    local TMP_DIR
+    TMP_DIR="$(mktemp -d)"
+    trap 'rm -rf "$TMP_DIR"' EXIT
+
+    echo "[INFO] Extracting local plugin ZIP: $ZIP_PATH"
+    unzip -q "$ZIP_PATH" -d "$TMP_DIR" || {
+        echo "[ERROR] Failed to extract ZIP file"
+        exit 1
+    }
+
+    local PLUGIN_DIR=""
+    local FOUND_COUNT=0
+
+    while IFS= read -r info_file; do
+        local dir
+        dir="$(dirname "$info_file")"
+        local dirname
+        dirname="$(basename "$dir")"
+        local plugin_id
+        plugin_id="$(jq -r '.id // empty' "$info_file" 2>/dev/null || true)"
+
+        if [[ -n "$plugin_id" ]] && [[ "$plugin_id" == "$dirname" ]]; then
+            PLUGIN_DIR="$dir"
+            (( FOUND_COUNT++ )) || true
+            echo "[INFO] Found plugin candidate: $plugin_id"
+        fi
+    done < <(find "$TMP_DIR" -type f -name "plugin-info.json" | sort)
+
+    if [[ $FOUND_COUNT -eq 0 ]]; then
+        echo "[ERROR] No valid InkyPi plugin found in ZIP (need a folder containing plugin-info.json with id matching the folder name)"
+        exit 1
+    fi
+
+    if [[ $FOUND_COUNT -gt 1 ]]; then
+        echo "[ERROR] Multiple plugin folders found in ZIP; only one plugin per ZIP is supported"
+        exit 1
+    fi
+
+    local PLUGIN_ID
+    PLUGIN_ID="$(jq -r '.id // empty' "$PLUGIN_DIR/plugin-info.json")"
+
+    if [[ -z "$PLUGIN_ID" ]]; then
+        echo "[ERROR] Could not determine plugin id from plugin-info.json"
+        exit 1
+    fi
+
+    local DEST_DIR="$PLUGINS_DIR/$PLUGIN_ID"
+
+    echo "[INFO] Installing local plugin '$PLUGIN_ID'"
+
+    if [[ -d "$DEST_DIR" ]]; then
+        try_remove_plugin_dir "$DEST_DIR"
+    fi
+
+    mkdir -p "$DEST_DIR"
+    cp -a "$PLUGIN_DIR"/. "$DEST_DIR"/ || {
+        echo "[ERROR] Failed to copy plugin files into $DEST_DIR"
+        try_remove_plugin_dir "$DEST_DIR"
+        exit 1
+    }
+
+    echo "[INFO] Plugin copied to $DEST_DIR"
+
+    install_requirements_if_present "$DEST_DIR"
+
+    if [[ "${PM_AUTO_MODE:-}" == "1" ]]; then
+        echo "[INFO] Done"
+    else
+        manual_restart_notice
+    fi
+}
+
+
+uninstall_plugin_cmd() {
+    if [[ $# -ne 1 ]]; then
+        usage
+        exit 1
+    fi
+
+    local PLUGIN_ID="$1"
+    local DEST_DIR="$PLUGINS_DIR/$PLUGIN_ID"
+
+    require_plugins_dir
+
+    if [[ ! -d "$DEST_DIR" ]]; then
+        echo "[ERROR] Plugin '$PLUGIN_ID' is not installed."
+        exit 1
+    fi
+
+    echo "[INFO] Removing plugin '$PLUGIN_ID'"
+    try_remove_plugin_dir "$DEST_DIR"
+    echo "[INFO] Plugin successfully uninstalled"
+
+    if [[ "${PM_AUTO_MODE:-}" == "1" ]]; then
+        echo "[INFO] Done"
+    else
+        manual_restart_notice
+    fi
+}
+
+
+convert_unmanaged() {
+    if [[ $# -lt 2 || $# -gt 3 ]]; then
+        usage
+        exit 1
+    fi
+
+    local PLUGIN_ID="$1"
+    local REPO_URL="$2"
+    local BRANCH
+    BRANCH="$(normalize_branch "${3:-}")"
+
+    echo "[INFO] Converting unmanaged plugin '$PLUGIN_ID' to managed"
+    if [[ -n "$BRANCH" ]]; then
+        install_plugin "$PLUGIN_ID" "$REPO_URL" "$BRANCH"
+    else
+        install_plugin "$PLUGIN_ID" "$REPO_URL"
+    fi
+}
+
+
+update_all() {
+    require_plugins_dir
+
+    local updated_count=0
+    local skipped_count=0
+
+    for plugin_dir in "$PLUGINS_DIR"/*; do
+        [[ ! -d "$plugin_dir" ]] && continue
+
+        local plugin_id
+        plugin_id="$(basename "$plugin_dir")"
+        [[ "$plugin_id" == "base_plugin" ]] && continue
+
+        local info_file="$plugin_dir/plugin-info.json"
+        [[ ! -f "$info_file" ]] && continue
+
+        local repo
+        repo="$(jq -r '.repository // empty' "$info_file" 2>/dev/null || true)"
+
+        if [[ -z "$repo" ]]; then
+            (( skipped_count++ )) || true
+            continue
+        fi
+
+        local branch=""
+        if [[ -d "$plugin_dir/.git" ]]; then
+            branch="$(git -C "$plugin_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+            [[ "$branch" == "HEAD" ]] && branch=""
+        fi
+
+        echo "[INFO] Updating $plugin_id"
+        if [[ -n "$branch" ]]; then
+            install_plugin "$plugin_id" "$repo" "$branch"
+        else
+            install_plugin "$plugin_id" "$repo"
+        fi
+        (( updated_count++ )) || true
+    done
+
+    echo "[INFO] Updated $updated_count managed plugin(s)"
+    if [[ $skipped_count -gt 0 ]]; then
+        echo "[INFO] Skipped $skipped_count unmanaged/builtin plugin(s)"
+    fi
+
+    if [[ "${PM_AUTO_MODE:-}" == "1" ]]; then
+        echo "[INFO] Done"
+    else
+        manual_restart_notice
+    fi
+}
+
+
+list_plugins() {
+    require_plugins_dir
+    {
+        printf "PLUGIN\tNAME\tTYPE\tREPOSITORY\n"
+
+        for plugin_dir in "$PLUGINS_DIR"/*; do
+            plugin_id="$(basename "$plugin_dir")"
+            [[ "$plugin_id" == "base_plugin" ]] && continue
+
+            info_file="$plugin_dir/plugin-info.json"
+            [[ ! -f "$info_file" ]] && continue
+
+            IFS=$'\t' read -r name repo < <(
+                jq -r '[.display_name, .repository] | map(. // "") | @tsv' "$info_file"
+            )
+
+            if [[ -n "$repo" ]]; then
+                type="third_party"
+            else
+                type="builtin"
+                repo="-"
+            fi
+
+            printf "%s\t%s\t%s\t%s\n" \
+                "$plugin_id" "$name" "$type" "$repo"
+        done
+    } | column -t -s $'\t'
+}
+
+
+case "$command" in
+    install)
+        install_plugin "$@"
+        ;;
+    install-from-url)
+        install_from_url "$@"
+        ;;
+    install-local)
+        install_local "$@"
+        ;;
+    uninstall)
+        uninstall_plugin_cmd "$@"
+        ;;
+    convert-unmanaged)
+        convert_unmanaged "$@"
+        ;;
+    update-all)
+        update_all "$@"
+        ;;
+    list)
+        list_plugins
+        ;;
+    ""|-h|--help|help)
+        usage
+        ;;
+    *)
+        echo "[ERROR] Unknown command: $command"
+        usage
+        exit 1
+        ;;
+esac

@@ -1,0 +1,6 @@
+{
+  "display_name": "Plugin Manager",
+  "id": "plugin_manager",
+  "class": "PluginManager",
+  "repository": "https://github.com/shadal18/inkypi-plugin-manager"
+}
