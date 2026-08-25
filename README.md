@@ -1,82 +1,147 @@
-# InkyPi-Plugin-Manager
+# InkyPi Plugin Manager
 
-![Example of InkyPi-Plugin-Manager](./screenshots/example-1.png)
+An InkyPi plugin that provides a web-based interface for installing, updating, converting, and removing third-party InkyPi plugins.
 
-![Example of InkyPi-Plugin-Manager](./screenshots/example-2.png)
+_InkyPi Plugin Manager_ is a plugin for [InkyPi](https://github.com/fatihak/InkyPi) that lets you manage compatible GitHub-hosted plugins from the InkyPi web UI instead of relying on command-line workflows.
 
-_InkyPi-Plugin-Manager_ is a plugin for [InkyPi](https://github.com/fatihak/InkyPi) that provides a web-based interface for managing third-party plugins.
+## Fork Notice
 
-## What it does
+This project is a heavily modified fork of [InkyPi-Plugin-PluginManager](https://github.com/RobinWts/InkyPi-Plugin-PluginManager) by RobinWts.
 
-Plugin Manager lets you install, update, uninstall, and manage third-party InkyPi plugins from the web UI instead of relying on command-line workflows.
+It retains the original goal of managing InkyPi plugins through the web UI, but this fork adds substantial functionality and changes to the installation, update, management, and restart workflows.
 
-This fork expands the original plugin with a more complete management flow, including managed vs. unmanaged plugin handling, bulk update actions, branch-aware installs, terminal job output, and optional auto-update support for managed plugins.
+Notable additions in this fork include:
 
-### Features
+- Managed and unmanaged plugin detection.
+- Conversion of unmanaged plugins into managed GitHub-linked plugins.
+- Git branch selection during install and conversion.
+- Per-plugin and bulk update checks.
+- Update-all support.
+- Per-plugin auto-update configuration.
+- Terminal-style job output in the web UI.
+- Deferred restart handling for manual operations.
+- Automatic restart only when background auto-update actually changes a plugin.
+- Plugin validation and automatic core-patch bootstrap.
 
-- **Install Plugins**: Install third-party plugins directly from GitHub repositories by entering the repository URL.
-- **Branch Selection**: Fetch and choose repository branches during install or conversion flows.
-- **Managed Plugins View**: See installed third-party plugins that already have a linked repository URL and are ready for update checks.
-- **Unmanaged Plugins View**: Detect locally installed plugins that do not yet have a stored repository URL.
-- **Convert Unmanaged Plugins**: Attach a GitHub repository URL to an unmanaged plugin so it can join the managed update workflow.
-- **Check for Updates**: Check whether updates are available for one plugin or all managed plugins at once by comparing local and remote commit hashes.
-- **Update Plugins**: Update a single managed plugin from its linked repository.
-- **Update All Plugins**: Run one update job across all managed plugins.
-- **Uninstall Plugins**: Remove plugins you no longer need with confirmation prompts.
-- **Version Information**: Display the version timestamp for each installed plugin.
-- **Auto-Update Support**: Enable automatic update checks for managed plugins on a per-plugin basis.
-- **Terminal Job Output**: View live job output for install, update, uninstall, and conversion actions directly in the web UI.
-- **Manual Restart Flow**: Queue multiple changes and restart InkyPi when you are ready, instead of forcing an immediate restart after every operation.
-- **Automatic Validation**: Validate plugin structure, including `plugin-info.json` and matching plugin IDs.
-- **GitHub-Only**: Accept GitHub.com repository URLs only.
-- **Core Patch Bootstrap**: Apply the required core patch automatically the first time the plugin is opened.
+## Install
 
-### Requirements
-
-- InkyPi must be installed and running.
-- Core files must be patched once (see Installation below).
-- Plugins must be hosted on GitHub.com.
-- Plugins must contain a `plugin-info.json` file with an `id` field that matches the plugin folder name.
-
-## Installation
-
-### Step 1: Install the Plugin Manager
-
-Install the plugin using the InkyPi CLI:
+Use the InkyPi plugin installer with the plugin ID and this repository URL.
 
 ```bash
-inkypi plugin install plugin_manager https://github.com/shadal18/inkypi-plugin-manager
+inkypi plugin install plugin_manager https://github.com/Shadal18/inkypi-plugin-manager
 ```
 
-### Step 2: Mark the plugin directory as safe for Git
+Depending on your InkyPi installation and service user, Git may report a “detected dubious ownership in repository” error after installation.
 
-Depending on how InkyPi is installed, the service may run under a different user than the one that installed the plugin. In that case, Git can refuse to read the repository with a “detected dubious ownership in repository” error.
-
-Add the plugin directory to Git’s system-wide `safe.directory` list:
+If that happens, add the Plugin Manager directory to Git’s system-wide safe directory list:
 
 ```bash
-sudo git config --system --add safe.directory /home/pi/InkyPi/src/plugins/plugin_manager
+sudo git config --system --add safe.directory ~/InkyPi/src/plugins/plugin_manager
 ```
 
-If your InkyPi install lives somewhere else, adjust the path accordingly.
-
-### Step 3: Restart InkyPi
+Restart InkyPi after installation:
 
 ```bash
 sudo systemctl restart inkypi.service
 ```
 
-### Step 4: Patch Core Files
+The first time you open Plugin Manager, it automatically applies the required InkyPi core patch.
 
-After installation, Plugin Manager requires a small patch to core InkyPi files so the plugin API blueprint can be registered correctly.
+For details about that one-time patch, see [CORE_CHANGES.md](./pluginmanager/CORE_CHANGES.md).
 
-This is a **one-time operation** and is applied automatically the first time you open Plugin Manager.
+## Update
 
-See [CORE_CHANGES.md](./pluginmanager/CORE_CHANGES.md) for more information about the patch and why it is required.
+To update Plugin Manager on your InkyPi device:
 
-## Usage
+1. SSH into your InkyPi host.
+2. Change into the Plugin Manager directory:
+   ```bash
+   cd ~/InkyPi/src/plugins/plugin_manager
+   ```
+3. Run this update command:
+   ```bash
+   git pull origin main && \
+   if [ -d plugin_manager ]; then \
+     rsync -a plugin_manager/ ./ && \
+     rm -rf plugin_manager; \
+   fi && \
+   sudo systemctl restart inkypi.service
+   ```
 
-### Installing a Plugin
+If you do not see your changes after updating:
+
+- Confirm that you are in the correct plugin directory.
+- Clear your browser cache or hard refresh the InkyPi web UI.
+- Check the InkyPi service logs for plugin errors.
+- Reopen Plugin Manager if an InkyPi update overwrote the required core patch.
+
+## Requirements
+
+- A working InkyPi installation with plugin support.
+- Network access from the InkyPi device to GitHub.com.
+- Plugins hosted on GitHub.com.
+- A valid `plugin-info.json` file in each plugin.
+- A plugin `id` in `plugin-info.json` that matches its plugin folder name.
+
+## Features
+
+This plugin extends InkyPi with a browser-based workflow for managing third-party plugins.
+
+- Install compatible plugins directly from GitHub repository URLs.
+- Select a Git branch when installing a plugin.
+- View installed plugins as managed or unmanaged.
+- Check one managed plugin for updates.
+- Check all managed plugins for updates at once.
+- Update individual managed plugins.
+- Update all managed plugins in one job.
+- Remove installed plugins from the web UI.
+- Display plugin version timestamps.
+- Display update status using local and remote commit hashes.
+- Convert unmanaged plugins into managed plugins.
+- Attach a GitHub repository URL and optional branch to unmanaged plugins.
+- Enable auto-update individually for managed plugins.
+- Show terminal-style output for install, update, conversion, and removal jobs.
+- Queue multiple changes before restarting InkyPi.
+- Validate plugin structure and matching plugin IDs.
+- Apply the required InkyPi core patch automatically when Plugin Manager is first opened.
+
+## Managed Plugins
+
+The **Managed plugins** section shows plugins that already have a linked GitHub repository URL.
+
+Managed plugins can participate in normal update workflows.
+
+Each managed plugin card includes:
+
+- Plugin name.
+- Plugin ID.
+- Version timestamp.
+- Update status.
+- Check button.
+- Update button.
+- Remove button.
+- Auto-update checkbox.
+
+## Unmanaged Plugins
+
+The **Unmanaged plugins** section shows installed plugins that do not yet have a stored repository URL.
+
+These plugins cannot be checked or updated through the managed workflow until they are converted.
+
+To convert an unmanaged plugin:
+
+1. Find the plugin under **Unmanaged plugins**.
+2. Enter the GitHub repository URL.
+3. Optionally select a branch.
+4. Click **Convert**.
+5. Wait for the terminal job to finish.
+6. Restart InkyPi when ready.
+
+After conversion, the plugin appears under **Managed plugins**.
+
+## Installing Plugins
+
+To install a third-party plugin:
 
 1. Open Plugin Manager from the main InkyPi page.
 2. Open the **Install from GitHub** section.
@@ -84,187 +149,151 @@ See [CORE_CHANGES.md](./pluginmanager/CORE_CHANGES.md) for more information abou
 4. Optionally choose a branch.
 5. Click **Install**.
 6. Wait for the terminal output to finish.
-7. Restart InkyPi when you are ready.
+7. Restart InkyPi when ready.
 
-**Example:**
+Example repository URL:
 
 ```text
 https://github.com/fatihak/InkyPi-Plugin-Template
 ```
 
-### Managed Plugins
+## Updating Plugins
 
-The **Managed plugins** section shows plugins that already have a linked repository URL.
+To update one managed plugin:
 
-Each managed plugin card includes:
-
-- **Plugin Name**
-- **Plugin ID**
-- **Version Timestamp**
-- **Update Status**
-- **Check button**
-- **Update button**
-- **Remove button**
-- **Auto-update checkbox**
-
-### Unmanaged Plugins
-
-The **Unmanaged plugins** section shows plugins that exist locally but do not yet have a stored repository URL.
-
-These plugins cannot take part in normal update flows until they are converted.
-
-To convert one:
-
-1. Find the plugin in **Unmanaged plugins**.
-2. Enter the GitHub repository URL.
-3. Optionally choose a branch.
-4. Click **Convert**.
-5. Wait for the conversion job to complete.
+1. Find the plugin under **Managed plugins**.
+2. Click **Check**.
+3. Confirm that an update is available.
+4. Click **Update**.
+5. Wait for the terminal job to complete.
 6. Restart InkyPi when ready.
 
-Once converted, the plugin will appear in **Managed plugins**.
-
-### Checking for Updates
-
-To check one plugin:
-
-1. Find the plugin in **Managed plugins**.
-2. Click **Check**.
-3. Review the result:
-   - **Up to date** means the installed copy matches the remote repository.
-   - **Update available** means the local and remote commits differ.
-
-To check all managed plugins:
+To update all managed plugins:
 
 1. Click **Check all updates**.
-2. Review the status shown for each plugin.
-3. Use **Update all** if one or more plugins have available updates.
-
-### Updating a Plugin
-
-1. Check for updates first.
-2. Click **Update** for a managed plugin with an available update.
-3. Wait for the terminal job to complete.
-4. Restart InkyPi when you are ready.
-
-### Updating All Plugins
-
-1. Click **Check all updates**.
-2. If updates are available, click **Update all**.
-3. Wait for the bulk update job to complete.
-4. Restart InkyPi when ready.
-
-### Uninstalling a Plugin
-
-1. Find the plugin in **Managed plugins**.
-2. Click **Remove**.
-3. Confirm the uninstallation.
-4. Wait for the uninstall job to complete.
+2. Review the update status for each plugin.
+3. Click **Update all** if updates are available.
+4. Wait for the bulk update job to complete.
 5. Restart InkyPi when ready.
 
-**Note:** Uninstalling a plugin removes it from the system, but any playlist entries referencing that plugin may still need to be cleaned up manually.
+**Up to date** means the installed plugin matches the linked remote repository.
 
-### Auto-Update
+**Update available** means the local and remote Git commits differ.
 
-Managed plugins can be marked for auto-update using the checkbox on each managed plugin card.
+## Auto-Update
 
-Behavior in this fork:
+Managed plugins can be marked for auto-update with the checkbox on each managed plugin card.
 
-- Auto-update is configured per managed plugin.
-- The background worker checks enabled plugins periodically.
-- If at least one enabled plugin is updated during an automatic pass, InkyPi restarts automatically.
+Auto-update behavior:
 
-## Operational Behavior
+- Auto-update is configured separately for each managed plugin.
+- The background worker periodically checks enabled plugins.
+- InkyPi restarts automatically only when at least one plugin was updated.
+- No restart is performed when all checked plugins are already current.
 
-### Restart behavior
+## Restart Behavior
 
-This fork changes the original restart flow.
-
-For install, update, uninstall, and conversion jobs started from the web UI:
+For install, update, removal, and conversion jobs started from the web UI:
 
 - Plugin Manager finishes the job first.
-- The UI then offers a restart action.
-- This allows you to perform multiple plugin operations before restarting InkyPi.
+- The web UI then offers a restart action.
+- You can complete multiple plugin changes before restarting InkyPi.
 
 For automatic background updates:
 
-- InkyPi restarts automatically only if a plugin was actually updated.
-
-### Terminal output
-
-Long-running actions now open a terminal-style output window in the web UI so you can follow progress and errors more clearly.
+- InkyPi restarts automatically only if a plugin was successfully updated.
 
 ## Troubleshooting
 
-### Plugin Manager shows "Core files need to be patched"
+### Core files need to be patched
 
-This means the required core patch has not been applied yet or was overwritten by an InkyPi update.
+If Plugin Manager shows **Core files need to be patched**, the required core patch has not been applied or was overwritten by an InkyPi update.
 
 Open Plugin Manager and let the automatic patch flow finish.
 
-### Installation fails with "No valid InkyPi plugin found"
+### No valid InkyPi plugin found
 
-Make sure:
+Confirm that:
 
-- The repository URL is correct and accessible.
-- The repository contains a valid plugin folder with `plugin-info.json`.
-- The `id` field in `plugin-info.json` matches the plugin folder name.
+- The repository URL is correct and reachable.
 - The repository is hosted on GitHub.com.
+- The repository contains a valid InkyPi plugin folder.
+- The plugin contains `plugin-info.json`.
+- The `id` inside `plugin-info.json` matches the plugin folder name.
 
-### A plugin appears under unmanaged plugins
+### Plugin appears as unmanaged
 
-This means the plugin exists locally but has no stored repository URL.
+A plugin appears under **Unmanaged plugins** when it exists locally but has no stored repository URL.
 
-To bring it into the managed workflow, add its GitHub repository URL in the **Unmanaged plugins** section and convert it.
+Enter its GitHub repository URL and use **Convert** to add it to the managed update workflow.
 
-### Update checks fail or always show no updates
+### Update checks fail
 
-If update checks do not behave as expected:
+If update checks do not work as expected:
 
-1. Ensure the plugin has a `.git` directory.
-2. Check that the remote repository URL is still valid and reachable.
-3. Verify network connectivity to GitHub.com.
-4. Confirm the plugin is listed under **Managed plugins**, not **Unmanaged plugins**.
+1. Confirm that the plugin has a `.git` directory.
+2. Confirm that the linked GitHub repository URL is valid.
+3. Verify network connectivity from InkyPi to GitHub.com.
+4. Confirm the plugin appears under **Managed plugins**.
+5. Confirm that the configured branch still exists.
 
 ### Auto-update does not run
 
-If a managed plugin does not auto-update:
+If a plugin does not auto-update:
 
-1. Confirm auto-update is enabled for that plugin.
-2. Confirm the plugin is still a valid git repository.
-3. Confirm `plugin-info.json` still exists.
-4. Confirm the stored repository URL is valid.
-5. Check InkyPi logs for background update errors.
+1. Confirm that auto-update is enabled on its managed plugin card.
+2. Confirm that it is still a valid Git repository.
+3. Confirm that `plugin-info.json` still exists.
+4. Confirm that the stored repository URL is valid.
+5. Check the InkyPi logs for background update errors.
 
-### InkyPi does not restart after operations
+```bash
+sudo journalctl -u inkypi.service -n 200 --no-pager
+```
 
-For manual operations started from the web UI, a restart is no longer immediate by default.
+### Restart InkyPi manually
 
-Use the restart button shown after the job completes.
+Manual Plugin Manager actions do not restart InkyPi immediately by default.
 
-If you need to restart manually:
+Use the restart button after a job finishes, or restart it manually:
 
 ```bash
 sudo systemctl restart inkypi.service
 ```
 
-### Recovering from a broken third-party plugin
+### Recover from a broken plugin
 
-If a plugin prevents InkyPi from starting, connect over SSH and remove it manually:
+If a third-party plugin prevents InkyPi from starting, remove it over SSH:
 
 ```bash
 ls ~/InkyPi/src/plugins
+```
 
+```bash
 sudo rm -rf ~/InkyPi/src/plugins/PLUGIN_FOLDER
+```
 
+```bash
 sudo systemctl restart inkypi.service
 ```
 
 Replace `PLUGIN_FOLDER` with the actual plugin directory name.
 
-## Development Status
+## Repository
 
-This plugin is actively maintained.
+GitHub repository:
+
+[https://github.com/Shadal18/inkypi-plugin-manager](https://github.com/Shadal18/inkypi-plugin-manager)
+
+## Screenshots
+
+- Plugin Manager dashboard.
+- Plugin installation and management interface.
+
+<p align="center">
+  <img src="screenshots/example-1.png" width="45%" />
+  <img src="screenshots/example-2.png" width="45%" />
+</p>
 
 ## License
 
