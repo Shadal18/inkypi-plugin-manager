@@ -1025,6 +1025,52 @@
       padding: 0 16px 16px 16px;
     }
 
+    .pm-status.queued {
+      color: var(--pm-text-soft);
+      background: color-mix(in srgb, var(--pm-text-soft) 10%, var(--pm-panel));
+      border-color: color-mix(in srgb, var(--pm-text-soft) 20%, transparent);
+    }
+
+    .pm-status.queued::before {
+      opacity: 0.4;
+    }
+
+    .pm-status .pm-spinner {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      border: 2px solid currentColor;
+      border-top-color: transparent;
+      animation: pm-spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+
+    .pm-status.checking::before {
+      display: none;
+    }
+
+    @keyframes pm-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .pm-plugin-card.pm-active-check {
+      border-color: color-mix(in srgb, var(--pm-blue) 55%, var(--pm-border));
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--pm-blue) 18%, transparent);
+      animation: pm-active-pulse 1.4s ease-in-out infinite;
+    }
+
+    @keyframes pm-active-pulse {
+      0%,
+      100% {
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--pm-blue) 18%, transparent);
+      }
+      50% {
+        box-shadow: 0 0 0 6px color-mix(in srgb, var(--pm-blue) 8%, transparent);
+      }
+    }
+
     #install-local-section .pm-install-grid {
       grid-template-columns: minmax(0, 1.8fr) auto;
     }
@@ -1103,7 +1149,9 @@
           </p>
         </div>
         <div class="pm-hero-actions">
-          <button type="button" class="pm-btn pm-btn-success" onclick="checkAllUpdates()">Check all updates</button>
+          <button type="button" class="pm-btn pm-btn-success" id="check-all-btn-bottom" onclick="checkAllUpdates()">
+            Check all updates
+          </button>
           <button
             type="button"
             class="pm-btn pm-btn-secondary"
@@ -1253,7 +1301,9 @@ sudo systemctl restart inkypi.service</pre
 
         <div class="pm-toolbar">
           <div class="pm-toolbar-left">
-            <button type="button" class="pm-btn pm-btn-success" onclick="checkAllUpdates()">Check all updates</button>
+            <button type="button" class="pm-btn pm-btn-success" id="check-all-btn" onclick="checkAllUpdates()">
+              Check all updates
+            </button>
             <button
               type="button"
               class="pm-btn pm-btn-secondary"
@@ -1533,8 +1583,21 @@ sudo systemctl restart inkypi.service</pre
     return [document.getElementById("update-all-btn"), document.getElementById("update-all-btn-bottom")].filter(Boolean)
   }
 
+  function getCheckAllButtons() {
+    return [document.getElementById("check-all-btn"), document.getElementById("check-all-btn-bottom")].filter(Boolean)
+  }
+
   function setUpdateAllDisabled(disabled) {
     getUpdateAllButtons().forEach((btn) => (btn.disabled = disabled))
+  }
+
+  function setActiveCheckingCards(pluginIds) {
+    const activeSet = new Set(pluginIds || [])
+
+    document.querySelectorAll(".pm-plugin-card").forEach((card) => {
+      const pluginId = card.getAttribute("data-plugin-id")
+      card.classList.toggle("pm-active-check", activeSet.has(pluginId))
+    })
   }
 
   function getRestartButtons() {
@@ -1976,48 +2039,160 @@ sudo systemctl restart inkypi.service</pre
   }
 
   async function checkAllUpdates() {
+    const checkAllBtns = getCheckAllButtons()
     const checkBtns = document.querySelectorAll('[id^="check-btn-"]')
-    checkBtns.forEach((btn) => (btn.disabled = true))
+    const seenPluginIds = new Set()
+    let consecutiveFailures = 0
+    const MAX_CONSECUTIVE_FAILURES = 4
+
+    const originalBtnText = new Map()
+    checkBtns.forEach((btn) => {
+      originalBtnText.set(btn, btn.textContent)
+      btn.disabled = true
+      btn.textContent = "Queued"
+    })
+
     setUpdateAllDisabled(true)
 
+    checkAllBtns.forEach((btn) => {
+      btn.disabled = true
+      btn.textContent = "Starting checks…"
+    })
+
+    document.querySelectorAll('[id^="update-status-"]').forEach((statusEl) => {
+      const pluginId = statusEl.id.replace("update-status-", "")
+      setStatus(pluginId, "queued", "Queued")
+    })
+
+    let pollInterval = null
+
+    const getCheckBtn = (pluginId) => document.getElementById(`check-btn-${pluginId}`)
+
+    const applyResult = (plugin) => {
+      if (seenPluginIds.has(plugin.plugin_id)) return
+      seenPluginIds.add(plugin.plugin_id)
+
+      const updateBtn = document.getElementById(`update-btn-${plugin.plugin_id}`)
+      const checkBtn = getCheckBtn(plugin.plugin_id)
+
+      if (checkBtn) {
+        checkBtn.textContent = originalBtnText.get(checkBtn) || "Check"
+      }
+
+      if (plugin.error) {
+        setStatus(plugin.plugin_id, "error", "Check failed")
+      } else if (plugin.has_updates) {
+        setStatus(plugin.plugin_id, "has-update", "Update available")
+        if (updateBtn) updateBtn.disabled = false
+      } else {
+        setStatus(plugin.plugin_id, "up-to-date", "Up to date")
+        if (updateBtn) updateBtn.disabled = true
+      }
+    }
+
+    const finish = (hasAnyUpdates, message, isSuccess) => {
+      if (pollInterval) {
+        clearInterval(pollInterval)
+        pollInterval = null
+      }
+
+      setActiveCheckingCards([])
+      checkBtns.forEach((btn) => {
+        btn.disabled = false
+        btn.textContent = originalBtnText.get(btn) || "Check"
+      })
+      setUpdateAllDisabled(!hasAnyUpdates)
+
+      checkAllBtns.forEach((btn) => {
+        btn.disabled = false
+        btn.textContent = "Check all updates"
+      })
+
+      showMessage(isSuccess, message)
+    }
+
     try {
-      const resp = await fetch("/pluginmanager-api/check-all-updates", {
+      const startResp = await fetch("/pluginmanager-api/check-all-updates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       })
 
-      const data = await resp.json().catch(() => ({}))
+      const startData = await startResp.json().catch(() => ({}))
 
-      if (!resp.ok) {
-        showMessage(false, data.error || "Failed to check all updates")
-        checkBtns.forEach((btn) => (btn.disabled = false))
+      if (!startResp.ok || !startData.success || !startData.job_id) {
+        finish(false, startData.error || "Failed to start update checks", false)
         return
       }
 
-      let hasAnyUpdates = false
+      const jobId = startData.job_id
 
-      ;(data.plugins || []).forEach((plugin) => {
-        const updateBtn = document.getElementById(`update-btn-${plugin.plugin_id}`)
+      pollInterval = setInterval(async () => {
+        try {
+          const resp = await fetch(`/pluginmanager-api/check-all-updates/${jobId}`)
 
-        if (plugin.has_updates) {
-          hasAnyUpdates = true
-          setStatus(plugin.plugin_id, "has-update", "Update available")
-          if (updateBtn) updateBtn.disabled = false
-        } else if (plugin.error) {
-          setStatus(plugin.plugin_id, "error", "Check failed")
-        } else {
-          setStatus(plugin.plugin_id, "up-to-date", "Up to date")
-          if (updateBtn) updateBtn.disabled = true
+          if (!resp.ok) {
+            consecutiveFailures += 1
+            if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+              finish(false, "Lost connection while checking updates", false)
+            }
+            return
+          }
+
+          const data = await resp.json().catch(() => null)
+
+          if (!data || !data.success) {
+            consecutiveFailures += 1
+            if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+              finish(false, (data && data.error) || "Failed to check all updates", false)
+            }
+            return
+          }
+
+          consecutiveFailures = 0
+
+          const current = data.current || 0
+          const total = data.total || 0
+          const activePluginIds = data.active_plugin_ids || []
+
+          checkAllBtns.forEach((btn) => {
+            btn.textContent = total > 0 ? `Checking ${current} of ${total}…` : "Checking…"
+          })
+
+          setActiveCheckingCards(activePluginIds)
+
+          activePluginIds.forEach((pluginId) => {
+            const checkBtn = getCheckBtn(pluginId)
+            if (checkBtn) checkBtn.textContent = "Checking"
+
+            if (!seenPluginIds.has(pluginId)) {
+              setStatus(pluginId, "checking", `Checking (${current} of ${total})`)
+            }
+          })
+          ;(data.plugins || []).forEach(applyResult)
+
+          if (data.done) {
+            const hasAnyUpdates = (data.plugins || []).some((p) => p.has_updates)
+            const failures = (data.plugins || []).filter((p) => p.error).length
+
+            const message =
+              failures > 0
+                ? `Checked ${total} repositories: ${data.plugins.filter((p) => p.has_updates).length} update(s) found, ${failures} failed.`
+                : hasAnyUpdates
+                  ? "Updates available."
+                  : "All plugins are up to date."
+
+            finish(hasAnyUpdates, message, data.job_success !== false)
+          }
+        } catch (e) {
+          consecutiveFailures += 1
+          if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+            finish(false, "Request failed: " + e.message, false)
+          }
         }
-      })
-
-      setUpdateAllDisabled(!hasAnyUpdates)
-      checkBtns.forEach((btn) => (btn.disabled = false))
-      showMessage(true, hasAnyUpdates ? "Updates available." : "All plugins are up to date.")
+      }, 600)
     } catch (e) {
-      showMessage(false, "Request failed: " + e.message)
-      checkBtns.forEach((btn) => (btn.disabled = false))
+      finish(false, "Request failed: " + e.message, false)
     }
   }
 

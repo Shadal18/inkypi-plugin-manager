@@ -8,6 +8,7 @@ import threading
 import time
 import uuid
 from urllib.parse import urlparse
+import concurrent.futures
 
 from flask import Blueprint, current_app, jsonify, request, send_file
 from werkzeug.utils import secure_filename
@@ -23,6 +24,7 @@ _JOB_TTL = 300
 _AUTO_UPDATE_THREAD = None
 _AUTO_UPDATE_THREAD_LOCK = threading.Lock()
 _AUTO_UPDATE_POLL_SECONDS = 300
+_CHECK_ALL_MAX_WORKERS = 4
 
 
 def _create_job():
@@ -34,9 +36,17 @@ def _create_job():
         "error": None,
         "created_at": time.time(),
         "lock": threading.Lock(),
+        "progress": {
+            "current": 0,
+            "total": 0,
+            "active_plugin_ids": [],
+            "results": [],
+        },
     }
+
     with _JOBS_LOCK:
         _JOBS[job_id] = job
+
     return job_id, job
 
 
@@ -57,6 +67,52 @@ def _append_job_line(job, line):
     with job["lock"]:
         job["lines"].append(line)
 
+
+def _update_job_progress(
+    job,
+    current=None,
+    total=None,
+    current_plugin_id=None,
+    result=None,
+):
+    """Safely update state reported by the check-all progress endpoint."""
+    with job["lock"]:
+        progress = job.setdefault(
+            "progress",
+            {
+                "current": 0,
+                "total": 0,
+                "current_plugin_id": None,
+                "results": [],
+            },
+        )
+
+        if current is not None:
+            progress["current"] = current
+
+        if total is not None:
+            progress["total"] = total
+
+        if current_plugin_id is not None:
+            progress["current_plugin_id"] = current_plugin_id
+
+        if result is not None:
+            progress["results"].append(result)
+
+
+def _add_active_plugin(job, plugin_id):
+    with job["lock"]:
+        active = job["progress"].setdefault("active_plugin_ids", [])
+        if plugin_id not in active:
+            active.append(plugin_id)
+
+
+def _remove_active_plugin(job, plugin_id):
+    with job["lock"]:
+        active = job["progress"].setdefault("active_plugin_ids", [])
+        if plugin_id in active:
+            active.remove(plugin_id)
+            
 
 def _mark_job_done(job, success, error=None):
     with job["lock"]:
@@ -754,114 +810,185 @@ def check_updates():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@plugin_manage_bp.route("/pluginmanager-api/check-all-updates", methods=["POST"])
-def check_all_updates():
+def _check_single_plugin_updates(job, plugin_id, repo_url):
+    """Check one plugin's repository for updates. Runs inside a worker thread
+    from the check-all ThreadPoolExecutor. Marks itself active only when this
+    worker actually begins running (not when merely submitted/queued), so the
+    active count never exceeds the pool's max_workers."""
+    _add_active_plugin(job, plugin_id)
+
+    result = {
+        "plugin_id": plugin_id,
+        "has_updates": False,
+        "error": None,
+        "current_branch": None,
+        "remote_branch": None,
+    }
+
     try:
-        third_party = _third_party_plugins()
-        results = []
+        if not repo_url:
+            result["error"] = "No repository URL"
+            return result
 
-        for plugin in third_party:
-            plugin_id = plugin["id"]
-            repo_url = plugin.get("repository", "")
+        plugin_dir = os.path.join(_plugins_dir(), plugin_id)
+        git_dir = os.path.join(plugin_dir, ".git")
 
-            if not repo_url:
-                results.append(
-                    {
-                        "plugin_id": plugin_id,
-                        "has_updates": False,
-                        "error": "No repository URL",
-                    }
-                )
-                continue
+        if not os.path.isdir(git_dir):
+            result["error"] = "Not a git repository"
+            return result
 
-            try:
-                plugin_dir = os.path.join(_plugins_dir(), plugin_id)
-                git_dir = os.path.join(plugin_dir, ".git")
+        local_commit = _get_plugin_local_commit(plugin_dir)
+        if not local_commit:
+            result["error"] = "Could not get local commit"
+            return result
 
-                if not os.path.isdir(git_dir):
-                    results.append(
-                        {
-                            "plugin_id": plugin_id,
-                            "has_updates": False,
-                            "error": "Not a git repository",
-                        }
-                    )
-                    continue
+        remote_url = _get_plugin_remote_url(plugin_dir)
+        if not remote_url:
+            result["error"] = "Could not get remote URL"
+            return result
 
-                local_commit = _get_plugin_local_commit(plugin_dir)
-                if not local_commit:
-                    results.append(
-                        {
-                            "plugin_id": plugin_id,
-                            "has_updates": False,
-                            "error": "Could not get local commit",
-                        }
-                    )
-                    continue
+        ls_remote_result = subprocess.run(
+            ["git", "ls-remote", "--heads", remote_url],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
 
-                remote_url = _get_plugin_remote_url(plugin_dir)
-                if not remote_url:
-                    results.append(
-                        {
-                            "plugin_id": plugin_id,
-                            "has_updates": False,
-                            "error": "Could not get remote URL",
-                        }
-                    )
-                    continue
+        if ls_remote_result.returncode != 0:
+            result["error"] = "Could not query remote"
+            return result
 
-                ls_remote_result = subprocess.run(
-                    ["git", "ls-remote", "--heads", remote_url],
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                )
+        remote_refs = [
+            line for line in ls_remote_result.stdout.splitlines() if line.strip()
+        ]
+        remote_commit, remote_branch = _find_preferred_remote_commit(remote_refs)
 
-                if ls_remote_result.returncode != 0:
-                    results.append(
-                        {
-                            "plugin_id": plugin_id,
-                            "has_updates": False,
-                            "error": "Could not query remote",
-                        }
-                    )
-                    continue
+        if not remote_commit:
+            result["error"] = "Could not determine remote commit"
+            return result
 
-                remote_refs = [line for line in ls_remote_result.stdout.strip().split("\n") if line.strip()]
-                remote_commit, _ = _find_preferred_remote_commit(remote_refs)
+        current_branch = _get_plugin_git_branch(plugin_dir)
+        result.update(
+            {
+                "has_updates": local_commit != remote_commit,
+                "current_branch": current_branch,
+                "remote_branch": remote_branch,
+            }
+        )
+        return result
 
-                if not remote_commit:
-                    results.append(
-                        {
-                            "plugin_id": plugin_id,
-                            "has_updates": False,
-                            "error": "Could not determine remote commit",
-                        }
-                    )
-                    continue
-
-                results.append(
-                    {
-                        "plugin_id": plugin_id,
-                        "has_updates": local_commit != remote_commit,
-                        "error": None,
-                    }
-                )
-
-            except Exception as e:
-                results.append(
-                    {
-                        "plugin_id": plugin_id,
-                        "has_updates": False,
-                        "error": str(e),
-                    }
-                )
-
-        return jsonify({"success": True, "plugins": results})
-
+    except subprocess.TimeoutExpired:
+        result["error"] = "Check timed out"
+        return result
     except Exception as e:
-        logger.exception("Failed to check all updates")
-        return jsonify({"success": False, "error": str(e)}), 500
+        logger.exception("Failed to check updates for %s", plugin_id)
+        result["error"] = str(e)
+        return result
+    finally:
+        _remove_active_plugin(job, plugin_id)
+        
+
+def _run_check_all_updates_job(app, job_id):
+    """Check all managed plugin repositories in the background, several at a time.
+
+    Runs in a plain thread with no Flask request context. Only the initial
+    _third_party_plugins() call needs current_app, so that's the only part
+    wrapped in app.app_context() — the concurrent per-plugin checks touch
+    only git/subprocess and are safe across worker threads.
+    """
+    job = _get_job(job_id)
+    if not job:
+        return
+
+    with app.app_context():
+        try:
+            third_party = _third_party_plugins()
+            total = len(third_party)
+
+            _update_job_progress(job, current=0, total=total)
+            _append_job_line(
+                job,
+                f"[INFO] Checking {total} managed plugin "
+                f"{'repository' if total == 1 else 'repositories'} "
+                f"(up to {_CHECK_ALL_MAX_WORKERS} at a time)",
+            )
+
+            if total == 0:
+                _append_job_line(job, "[INFO] No managed plugin repositories found")
+                _mark_job_done(job, True)
+                return
+
+            completed = 0
+
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=_CHECK_ALL_MAX_WORKERS
+            ) as executor:
+                future_to_plugin = {}
+
+                for plugin in third_party:
+                    plugin_id = plugin["id"]
+                    repo_url = (plugin.get("repository") or "").strip()
+                    future = executor.submit(
+                        _check_single_plugin_updates, job, plugin_id, repo_url
+                    )
+                    future_to_plugin[future] = plugin_id
+                    _append_job_line(job, f"[INFO] Queued check: {plugin_id}")
+
+                for future in concurrent.futures.as_completed(future_to_plugin):
+                    plugin_id = future_to_plugin[future]
+
+                    try:
+                        result = future.result()
+                    except Exception as e:
+                        logger.exception("Worker crashed checking %s", plugin_id)
+                        result = {
+                            "plugin_id": plugin_id,
+                            "has_updates": False,
+                            "error": str(e),
+                        }
+                        _remove_active_plugin(job, plugin_id)
+
+                    completed += 1
+                    _update_job_progress(
+                        job, current=completed, total=total, result=result
+                    )
+
+                    if result.get("error"):
+                        _append_job_line(
+                            job,
+                            f"[WARN] [{completed}/{total}] {plugin_id}: {result['error']}",
+                        )
+                    elif result.get("has_updates"):
+                        _append_job_line(
+                            job,
+                            f"[INFO] [{completed}/{total}] {plugin_id}: update available",
+                        )
+                    else:
+                        _append_job_line(
+                            job,
+                            f"[INFO] [{completed}/{total}] {plugin_id}: up to date",
+                        )
+
+            with job["lock"]:
+                results = list(job["progress"]["results"])
+
+            update_count = sum(1 for r in results if r.get("has_updates"))
+            failure_count = sum(1 for r in results if r.get("error"))
+
+            _append_job_line(
+                job,
+                f"[INFO] Finished checking {total} plugin repositories: "
+                f"{update_count} update(s) available, {failure_count} error(s)",
+            )
+            _mark_job_done(job, True)
+
+        except Exception as e:
+            logger.exception("Failed to run check-all-updates job %s", job_id)
+            _append_job_line(
+                job,
+                f"[ERROR] Failed to check managed repositories: {e}",
+            )
+            _mark_job_done(job, False, str(e))
 
 
 @plugin_manage_bp.route("/pluginmanager-api/update", methods=["POST"])
@@ -1042,23 +1169,47 @@ def set_auto_update_config():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@plugin_manage_bp.route("/pluginmanager-api/job/<job_id>/output", methods=["GET"])
-def job_output(job_id):
+@plugin_manage_bp.route("/pluginmanager-api/check-all-updates", methods=["POST"])
+def check_all_updates():
+    """Start a background all-managed-repositories update check."""
+    _purge_old_jobs()
+    job_id, _ = _create_job()
+
+    app = current_app._get_current_object()
+
+    thread = threading.Thread(
+        target=_run_check_all_updates_job,
+        args=(app, job_id),
+        daemon=True,
+    )
+    thread.start()
+
+    return jsonify(
+        {
+            "success": True,
+            "job_id": job_id,
+        }
+    )
+
+@plugin_manage_bp.route("/pluginmanager-api/check-all-updates/<job_id>", methods=["GET"])
+def check_all_updates_status(job_id):
+    """Poll progress for a running check-all-updates job."""
     job = _get_job(job_id)
     if not job:
         return jsonify({"success": False, "error": "Job not found"}), 404
 
-    since = request.args.get("since", 0, type=int)
     with job["lock"]:
-        new_lines = job["lines"][since:]
+        progress = job.get("progress", {})
         return jsonify(
             {
                 "success": True,
-                "lines": new_lines,
-                "offset": since + len(new_lines),
                 "done": job["done"],
                 "job_success": job["success"],
                 "error": job["error"],
+                "current": progress.get("current", 0),
+                "total": progress.get("total", 0),
+                "active_plugin_ids": list(progress.get("active_plugin_ids", [])),
+                "plugins": list(progress.get("results", [])),
             }
         )
 
