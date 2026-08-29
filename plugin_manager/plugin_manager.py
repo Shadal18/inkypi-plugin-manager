@@ -68,24 +68,28 @@ class PluginManager(BasePlugin):
     def generate_settings_template(self):
         """Add third-party plugins list to template parameters."""
         template_params = super().generate_settings_template()
+
         try:
             from flask import current_app
-           
+
             core_needs_patch = False
             core_patch_missing = []
+
             try:
                 from .patch_core import check_core_patched
+
                 is_patched, missing = check_core_patched()
                 core_needs_patch = not is_patched
                 core_patch_missing = missing
             except Exception as e:
                 logger.warning(f"Could not check patch status: {e}")
-           
-            template_params['core_needs_patch'] = core_needs_patch
-            template_params['core_patch_missing'] = core_patch_missing
-           
+
+            template_params["core_needs_patch"] = core_needs_patch
+            template_params["core_patch_missing"] = core_patch_missing
+
             if core_needs_patch:
                 patch_script = os.path.join(os.path.dirname(__file__), "patch-core.sh")
+
                 if os.path.isfile(patch_script):
                     try:
                         subprocess.Popen(
@@ -93,40 +97,60 @@ class PluginManager(BasePlugin):
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL,
                         )
-                        template_params['auto_patch_started'] = True
+                        template_params["auto_patch_started"] = True
                     except Exception as e:
                         logger.warning(f"Could not start auto core patch: {e}")
-                        template_params['auto_patch_started'] = False
+                        template_params["auto_patch_started"] = False
                 else:
                     logger.warning("patch-core.sh not found for pluginmanager")
-                    template_params['auto_patch_started'] = False
-               
-                template_params['third_party_plugins'] = []
-                template_params['unmanaged_plugins'] = []
+                    template_params["auto_patch_started"] = False
+
+                template_params["third_party_plugins"] = []
+                template_params["unmanaged_plugins"] = []
+
             else:
-                device_config = current_app.config.get('DEVICE_CONFIG')
+                device_config = current_app.config.get("DEVICE_CONFIG")
+
                 if device_config:
-                    third_party = [p for p in device_config.get_plugins() if p.get("repository")]
+                    third_party = [
+                        dict(plugin)
+                        for plugin in device_config.get_plugins()
+                        if plugin.get("repository")
+                    ]
+
+                    try:
+                        from .api import _plugin_auto_update_enabled
+                    except ImportError:
+                        from api import _plugin_auto_update_enabled
+
                     for plugin in third_party:
                         plugin_id = plugin.get("id")
+
                         if plugin_id:
                             version_date = self._get_plugin_last_commit_date(plugin_id)
-                            plugin['version_date'] = version_date or "Unknown"
-                    template_params['third_party_plugins'] = third_party
-                   
-                    unmanaged = self._get_unmanaged_plugins()
-                    template_params['unmanaged_plugins'] = unmanaged
+                            plugin["version_date"] = version_date or "Unknown"
+                            plugin["auto_update_enabled"] = (
+                                _plugin_auto_update_enabled(plugin_id)
+                            )
+                        else:
+                            plugin["auto_update_enabled"] = False
+
+                    template_params["third_party_plugins"] = third_party
+                    template_params["unmanaged_plugins"] = self._get_unmanaged_plugins()
+
                 else:
-                    template_params['third_party_plugins'] = []
-                    template_params['unmanaged_plugins'] = []
+                    template_params["third_party_plugins"] = []
+                    template_params["unmanaged_plugins"] = []
+
         except (RuntimeError, ImportError):
-            template_params['third_party_plugins'] = []
-            template_params['unmanaged_plugins'] = []
-            template_params['core_needs_patch'] = False
-            template_params['core_patch_missing'] = []
-            template_params['auto_patch_started'] = False
+            template_params["third_party_plugins"] = []
+            template_params["unmanaged_plugins"] = []
+            template_params["core_needs_patch"] = False
+            template_params["core_patch_missing"] = []
+            template_params["auto_patch_started"] = False
+
         return template_params
-   
+        
     def generate_image(self, settings, device_config):
         """Return a placeholder image - this plugin is UI-only."""
         width, height = device_config.get_resolution()
