@@ -1085,6 +1085,166 @@
       min-width: 170px;
     }
   }
+
+
+    .pm-catalog-controls {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(180px, 0.42fr) auto;
+      gap: 12px;
+      align-items: end;
+      margin-bottom: 16px;
+    }
+
+    .pm-catalog-status {
+      margin: 0 0 14px;
+      color: var(--pm-text-muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .pm-catalog-status.error {
+      color: var(--pm-danger);
+    }
+
+    .pm-catalog-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+      gap: 14px;
+    }
+
+    .pm-catalog-card {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 14px;
+      min-width: 0;
+      padding: 16px;
+      border: 1px solid var(--pm-border);
+      border-radius: var(--pm-radius-lg);
+      background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--pm-panel) 96%, #fff 4%),
+        color-mix(in srgb, var(--pm-panel-2) 96%, var(--pm-bg) 4%)
+      );
+      box-shadow: 0 1px 0 color-mix(in srgb, #fff 16%, transparent);
+    }
+
+    .pm-catalog-card-head {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .pm-catalog-icon,
+    .pm-catalog-icon-fallback {
+      width: 42px;
+      height: 42px;
+      flex: 0 0 42px;
+      border-radius: 12px;
+      border: 1px solid var(--pm-border);
+      background: var(--pm-bg-soft);
+    }
+
+    .pm-catalog-icon {
+      object-fit: cover;
+    }
+
+    .pm-catalog-icon-fallback {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--pm-primary);
+      font-size: 20px;
+    }
+
+    .pm-catalog-title-wrap {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .pm-catalog-title {
+      color: var(--pm-text);
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.25;
+    }
+
+    .pm-catalog-id {
+      margin-top: 4px;
+      color: var(--pm-text-soft);
+      font-family: "Courier New", Courier, monospace;
+      font-size: 11px;
+      overflow-wrap: anywhere;
+    }
+
+    .pm-catalog-description {
+      margin: 0;
+      color: var(--pm-text-muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .pm-catalog-meta,
+    .pm-catalog-tags,
+    .pm-catalog-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .pm-catalog-category,
+    .pm-catalog-tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 25px;
+      padding: 0 9px;
+      border: 1px solid var(--pm-border);
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--pm-bg-soft) 72%, var(--pm-panel) 28%);
+      color: var(--pm-text-muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .pm-catalog-category {
+      color: var(--pm-primary);
+      border-color: color-mix(in srgb, var(--pm-primary) 24%, var(--pm-border));
+    }
+
+    .pm-catalog-actions {
+      justify-content: space-between;
+      padding-top: 2px;
+    }
+
+    .pm-catalog-source {
+      color: var(--pm-text-muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .pm-catalog-source:hover {
+      color: var(--pm-primary);
+      text-decoration: underline;
+    }
+
+    .pm-catalog-empty {
+      grid-column: 1 / -1;
+      padding: 22px;
+      border: 1px dashed var(--pm-border-strong);
+      border-radius: var(--pm-radius-lg);
+      color: var(--pm-text-muted);
+      text-align: center;
+      font-size: 13px;
+    }
+
+    @media (max-width: 760px) {
+      .pm-catalog-controls {
+        grid-template-columns: 1fr;
+      }
+    }
+
 </style>
 
 <div class="plugin-manage-container">
@@ -1214,6 +1374,53 @@ sudo systemctl restart inkypi.service</pre
           <strong>Recommendation:</strong> keep those commands somewhere safe. If InkyPi does not start, this page will
           not be available.
         </p>
+      </div>
+    </details>
+
+
+
+    <details class="pm-section" id="catalog-section" open>
+      <summary>
+        <div class="pm-section-header">
+          <span class="pm-section-icon-wrap" style="color: #67d5bf">✦</span>
+          <div class="pm-section-title-wrap">
+            <div class="pm-section-title">Available plugins</div>
+            <div class="pm-section-subtitle">Browse the curated Shadal18 InkyPi plugin catalog.</div>
+          </div>
+          <div class="pm-section-meta">
+            <span class="pm-pill" id="catalog-count">Loading…</span>
+            <span class="pm-chevron">▼</span>
+          </div>
+        </div>
+      </summary>
+      <div class="pm-section-body">
+        <div class="pm-inline-note">
+          Catalog plugins are installed from their public GitHub repositories. Review the source repository before
+          installing third-party code.
+        </div>
+        <div class="pm-catalog-controls">
+          <div class="pm-field">
+            <label class="pm-label" for="catalog-search">Search plugins</label>
+            <input
+              type="search"
+              id="catalog-search"
+              class="pm-input"
+              placeholder="Search by name, category, or tag"
+              autocomplete="off"
+            />
+          </div>
+          <div class="pm-field">
+            <label class="pm-label" for="catalog-category">Category</label>
+            <select id="catalog-category" class="pm-select">
+              <option value="">All categories</option>
+            </select>
+          </div>
+          <button type="button" id="catalog-refresh-btn" class="pm-btn pm-btn-ghost" onclick="refreshPluginCatalog()">
+            Refresh catalog
+          </button>
+        </div>
+        <p id="catalog-status" class="pm-catalog-status" aria-live="polite">Loading catalog…</p>
+        <div id="catalog-grid" class="pm-catalog-grid" aria-live="polite"></div>
       </div>
     </details>
 
@@ -2369,6 +2576,233 @@ sudo systemctl restart inkypi.service</pre
       })
     } catch (_) {}
   }
+
+
+
+  let _catalogPlugins = []
+
+  function catalogElement(tagName, className, text) {
+    const element = document.createElement(tagName)
+    if (className) element.className = className
+    if (text !== undefined && text !== null) element.textContent = text
+    return element
+  }
+
+  function setCatalogStatus(text, isError = false) {
+    const statusEl = document.getElementById("catalog-status")
+    if (!statusEl) return
+    statusEl.textContent = text || ""
+    statusEl.classList.toggle("error", !!isError)
+  }
+
+  function catalogMatches(plugin, searchText, category) {
+    if (category && plugin.category !== category) return false
+    if (!searchText) return true
+
+    const haystack = [
+      plugin.name,
+      plugin.id,
+      plugin.description,
+      plugin.category,
+      ...(Array.isArray(plugin.tags) ? plugin.tags : []),
+    ]
+      .join(" ")
+      .toLowerCase()
+
+    return haystack.includes(searchText)
+  }
+
+  function populateCatalogCategories() {
+    const categorySelect = document.getElementById("catalog-category")
+    if (!categorySelect) return
+
+    const currentCategory = categorySelect.value
+    const categories = [...new Set(_catalogPlugins.map((plugin) => plugin.category).filter(Boolean))].sort((a, b) =>
+      a.localeCompare(b)
+    )
+
+    categorySelect.replaceChildren()
+    const allOption = catalogElement("option", "", "All categories")
+    allOption.value = ""
+    categorySelect.appendChild(allOption)
+
+    categories.forEach((category) => {
+      const option = catalogElement("option", "", category)
+      option.value = category
+      option.selected = category === currentCategory
+      categorySelect.appendChild(option)
+    })
+  }
+
+  function makeCatalogIcon(plugin) {
+    const fallback = () => catalogElement("div", "pm-catalog-icon-fallback", "✦")
+    if (!plugin.icon_url) return fallback()
+
+    const image = document.createElement("img")
+    image.className = "pm-catalog-icon"
+    image.src = plugin.icon_url
+    image.alt = ""
+    image.loading = "lazy"
+    image.referrerPolicy = "no-referrer"
+    image.onerror = () => image.replaceWith(fallback())
+    return image
+  }
+
+  function renderPluginCatalog() {
+    const grid = document.getElementById("catalog-grid")
+    const searchInput = document.getElementById("catalog-search")
+    const categorySelect = document.getElementById("catalog-category")
+    const countEl = document.getElementById("catalog-count")
+    if (!grid || !searchInput || !categorySelect) return
+
+    const searchText = searchInput.value.trim().toLowerCase()
+    const category = categorySelect.value
+    const visiblePlugins = _catalogPlugins.filter((plugin) => catalogMatches(plugin, searchText, category))
+
+    grid.replaceChildren()
+    if (countEl) countEl.textContent = `${visiblePlugins.length} shown`
+
+    if (!visiblePlugins.length) {
+      grid.appendChild(catalogElement("div", "pm-catalog-empty", "No catalog plugins match the current filters."))
+      return
+    }
+
+    visiblePlugins.forEach((plugin) => {
+      const card = catalogElement("article", "pm-catalog-card")
+      card.dataset.pluginId = plugin.id
+
+      const head = catalogElement("div", "pm-catalog-card-head")
+      head.appendChild(makeCatalogIcon(plugin))
+      const titleWrap = catalogElement("div", "pm-catalog-title-wrap")
+      titleWrap.appendChild(catalogElement("div", "pm-catalog-title", plugin.name))
+      titleWrap.appendChild(catalogElement("div", "pm-catalog-id", plugin.id))
+      head.appendChild(titleWrap)
+      card.appendChild(head)
+
+      const content = catalogElement("div", "")
+      content.appendChild(catalogElement("p", "pm-catalog-description", plugin.description))
+      const meta = catalogElement("div", "pm-catalog-meta")
+      meta.style.marginTop = "12px"
+      meta.appendChild(catalogElement("span", "pm-catalog-category", plugin.category || "Other"))
+      content.appendChild(meta)
+
+      if (Array.isArray(plugin.tags) && plugin.tags.length) {
+        const tags = catalogElement("div", "pm-catalog-tags")
+        tags.style.marginTop = "8px"
+        plugin.tags.slice(0, 4).forEach((tag) => tags.appendChild(catalogElement("span", "pm-catalog-tag", tag)))
+        content.appendChild(tags)
+      }
+      card.appendChild(content)
+
+      const actions = catalogElement("div", "pm-catalog-actions")
+      const sourceLink = catalogElement("a", "pm-catalog-source", "View source")
+      sourceLink.href = plugin.homepage || plugin.repository
+      sourceLink.target = "_blank"
+      sourceLink.rel = "noopener noreferrer"
+      actions.appendChild(sourceLink)
+
+      const installButton = catalogElement("button", plugin.installed ? "pm-btn pm-btn-ghost" : "pm-btn pm-btn-primary")
+      installButton.type = "button"
+      installButton.dataset.pluginId = plugin.id
+      installButton.textContent = plugin.installed ? "Installed" : "Install"
+      installButton.disabled = !!plugin.installed
+      if (!plugin.installed) {
+        installButton.onclick = () => installCatalogPlugin(plugin.id, installButton)
+      }
+      actions.appendChild(installButton)
+      card.appendChild(actions)
+
+      grid.appendChild(card)
+    })
+  }
+
+  async function loadPluginCatalog(forceRefresh = false) {
+    const refreshButton = document.getElementById("catalog-refresh-btn")
+    if (refreshButton) {
+      refreshButton.disabled = true
+      refreshButton.textContent = forceRefresh ? "Refreshing…" : "Loading…"
+    }
+
+    setCatalogStatus(forceRefresh ? "Refreshing catalog…" : "Loading catalog…")
+
+    try {
+      const endpoint = forceRefresh
+        ? "/pluginmanager-api/catalog/refresh"
+        : "/pluginmanager-api/catalog"
+      const options = forceRefresh
+        ? { method: "POST", headers: { "Content-Type": "application/json" } }
+        : { method: "GET" }
+
+      const response = await fetch(endpoint, options)
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok || !data.success || !Array.isArray(data.plugins)) {
+        throw new Error(data.error || "Failed to load plugin catalog")
+      }
+
+      _catalogPlugins = data.plugins
+      populateCatalogCategories()
+      renderPluginCatalog()
+
+      const suffix = data.from_cache ? " Using saved catalog." : ""
+      setCatalogStatus(data.warning || `${_catalogPlugins.length} catalog plugin(s) available.${suffix}`)
+    } catch (error) {
+      _catalogPlugins = []
+      renderPluginCatalog()
+      setCatalogStatus(`Catalog unavailable: ${error.message}`, true)
+    } finally {
+      if (refreshButton) {
+        refreshButton.disabled = false
+        refreshButton.textContent = "Refresh catalog"
+      }
+    }
+  }
+
+  function refreshPluginCatalog() {
+    loadPluginCatalog(true)
+  }
+
+  async function installCatalogPlugin(pluginId, button) {
+    const plugin = _catalogPlugins.find((item) => item.id === pluginId)
+    if (!plugin || !button || button.disabled) return
+
+    const confirmed = confirm(
+      `Install ${plugin.name}?\n\nSource: ${plugin.repository}\n\nOnly install plugins whose source you trust.`
+    )
+    if (!confirmed) return
+
+    const originalText = button.textContent
+    button.disabled = true
+    button.textContent = "Starting…"
+
+    try {
+      const response = await fetch("/pluginmanager-api/catalog/install", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plugin_id: pluginId }),
+      })
+      const data = await response.json().catch(() => ({}))
+
+      if (response.ok && data.success && data.job_id) {
+        openTerminalModal(`Installing: ${plugin.name}`, data.job_id, { reloadOnSuccess: true })
+        return
+      }
+
+      throw new Error(data.error || "Catalog install failed")
+    } catch (error) {
+      button.disabled = false
+      button.textContent = originalText
+      showMessage(false, `Install failed: ${error.message}`)
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const searchInput = document.getElementById("catalog-search")
+    const categorySelect = document.getElementById("catalog-category")
+    if (searchInput) searchInput.addEventListener("input", renderPluginCatalog)
+    if (categorySelect) categorySelect.addEventListener("change", renderPluginCatalog)
+    loadPluginCatalog()
+  })
 
   document.addEventListener("DOMContentLoaded", () => {
     const reloadBtn = document.getElementById("reload-btn")

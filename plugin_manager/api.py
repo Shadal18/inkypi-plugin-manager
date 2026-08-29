@@ -8,6 +8,9 @@ import threading
 import time
 import uuid
 from urllib.parse import urlparse
+import re
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 import concurrent.futures
 
 from flask import Blueprint, current_app, jsonify, request, send_file
@@ -25,6 +28,13 @@ _AUTO_UPDATE_THREAD = None
 _AUTO_UPDATE_THREAD_LOCK = threading.Lock()
 _AUTO_UPDATE_POLL_SECONDS = 300
 _CHECK_ALL_MAX_WORKERS = 4
+
+
+_CATALOG_URL = "https://raw.githubusercontent.com/Shadal18/inkypi-plugin-catalog/main/plugins.json"
+_CATALOG_CACHE_FILENAME = "plugin_catalog_cache.json"
+_CATALOG_CACHE_TTL_SECONDS = 21600
+_CATALOG_ALLOWED_OWNER = "shadal18"
+_CATALOG_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_]{0,63}$")
 
 
 def _create_job():
@@ -249,6 +259,223 @@ def _unmanaged_plugins():
     device_config = current_app.config["DEVICE_CONFIG"]
     return [p for p in device_config.get_plugins() if not p.get("repository")]
 
+
+
+def _catalog_cache_path():
+    return os.path.join(os.path.dirname(__file__), _CATALOG_CACHE_FILENAME)
+
+
+def _catalog_repository_is_allowed(repository):
+    ok, canonical_url, _ = _resolve_github_url(repository)
+    if not ok:
+        return False, None
+
+    parsed = urlparse(canonical_url)
+    parts = [part for part in parsed.path.strip("/").split("/") if part]
+    if len(parts) != 2 or parts[0].lower() != _CATALOG_ALLOWED_OWNER:
+        return False, None
+
+    return True, canonical_url
+
+
+def _validate_catalog_entry(entry):
+    if not isinstance(entry, dict):
+        return None
+
+    plugin_id = (entry.get("id") or "").strip()
+    name = (entry.get("name") or "").strip()
+    description = (entry.get("description") or "").strip()
+    repository = (entry.get("repository") or "").strip()
+
+    if not _CATALOG_ID_RE.fullmatch(plugin_id):
+        return None
+    if not name or len(name) > 120:
+        return None
+    if not description or len(description) > 1000:
+        return None
+
+    allowed, canonical_repository = _catalog_repository_is_allowed(repository)
+    if not allowed:
+        return None
+
+    branch = _normalize_branch(entry.get("branch"))
+    category = (entry.get("category") or "Other").strip()[:80] or "Other"
+    homepage = (entry.get("homepage") or canonical_repository).strip()
+    icon_url = (entry.get("icon_url") or "").strip()
+    tags = entry.get("tags") or []
+
+    if not isinstance(tags, list):
+        tags = []
+
+    safe_tags = []
+    for tag in tags:
+        if not isinstance(tag, str):
+            continue
+        tag = tag.strip()[:40]
+        if tag and tag not in safe_tags:
+            safe_tags.append(tag)
+
+    if icon_url:
+        parsed_icon = urlparse(icon_url)
+        icon_host = parsed_icon.netloc.lower().split(":")[0]
+        if parsed_icon.scheme != "https" or icon_host not in (
+            "raw.githubusercontent.com",
+            "github.com",
+            "www.github.com",
+        ):
+            icon_url = ""
+
+    if homepage:
+        homepage_ok, canonical_homepage, _ = _resolve_github_url(homepage)
+        homepage = canonical_homepage if homepage_ok else canonical_repository
+    else:
+        homepage = canonical_repository
+
+    return {
+        "id": plugin_id,
+        "name": name,
+        "description": description,
+        "repository": canonical_repository,
+        "branch": branch,
+        "category": category,
+        "icon_url": icon_url,
+        "homepage": homepage,
+        "min_inkypi_version": (entry.get("min_inkypi_version") or "").strip()[:40],
+        "tags": safe_tags,
+        "featured": bool(entry.get("featured", False)),
+    }
+
+
+def _validate_catalog_document(document):
+    if not isinstance(document, dict):
+        raise ValueError("Catalog must be a JSON object")
+    if document.get("schema_version") != 1:
+        raise ValueError("Unsupported catalog schema version")
+
+    raw_plugins = document.get("plugins")
+    if not isinstance(raw_plugins, list):
+        raise ValueError("Catalog plugins must be a list")
+
+    plugins = []
+    seen_ids = set()
+    for raw_entry in raw_plugins:
+        entry = _validate_catalog_entry(raw_entry)
+        if not entry:
+            continue
+        if entry["id"] in seen_ids:
+            continue
+        seen_ids.add(entry["id"])
+        plugins.append(entry)
+
+    plugins.sort(key=lambda item: (not item["featured"], item["name"].lower()))
+    return {
+        "schema_version": 1,
+        "updated_at": (document.get("updated_at") or "").strip()[:80],
+        "plugins": plugins,
+    }
+
+
+def _read_catalog_cache():
+    path = _catalog_cache_path()
+    if not os.path.isfile(path):
+        return None, None
+
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            cached = json.load(handle)
+        if not isinstance(cached, dict):
+            return None, None
+
+        fetched_at = float(cached.get("fetched_at", 0))
+        catalog = _validate_catalog_document(cached.get("catalog"))
+        return catalog, fetched_at
+    except Exception:
+        logger.exception("Failed to read plugin catalog cache")
+        return None, None
+
+
+def _write_catalog_cache(catalog):
+    path = _catalog_cache_path()
+    temporary_path = f"{path}.tmp"
+    payload = {"fetched_at": time.time(), "catalog": catalog}
+
+    with open(temporary_path, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
+    os.replace(temporary_path, path)
+
+
+def _fetch_plugin_catalog(force_refresh=False):
+    cached_catalog, fetched_at = _read_catalog_cache()
+    cache_is_fresh = (
+        cached_catalog is not None
+        and fetched_at is not None
+        and time.time() - fetched_at < _CATALOG_CACHE_TTL_SECONDS
+    )
+
+    if cached_catalog is not None and cache_is_fresh and not force_refresh:
+        return cached_catalog, True, None
+
+    try:
+        request_object = Request(
+            _CATALOG_URL,
+            headers={"User-Agent": "InkyPi-PluginManager/1.0", "Accept": "application/json"},
+        )
+        with urlopen(request_object, timeout=15) as response:
+            raw_body = response.read(512 * 1024)
+
+        document = json.loads(raw_body.decode("utf-8"))
+        catalog = _validate_catalog_document(document)
+        _write_catalog_cache(catalog)
+        return catalog, False, None
+    except (HTTPError, URLError, TimeoutError, ValueError, UnicodeDecodeError) as error:
+        logger.warning("Unable to refresh plugin catalog: %s", error)
+    except Exception:
+        logger.exception("Unable to refresh plugin catalog")
+
+    if cached_catalog is not None:
+        return cached_catalog, True, "Using saved catalog because the remote catalog is unavailable"
+
+    return None, False, "Unable to load the plugin catalog"
+
+
+def _catalog_installed_plugin_ids():
+    device_config = current_app.config["DEVICE_CONFIG"]
+    return {
+        str(plugin.get("id")).strip()
+        for plugin in device_config.get_plugins()
+        if plugin.get("id")
+    }
+
+
+def _start_repository_install_job(repository, branch=None):
+    cli = _cli_script()
+    if not os.path.isfile(cli):
+        return None, "Plugin CLI not found"
+
+    project_dir = _project_dir()
+    env = {**os.environ, "PROJECT_DIR": project_dir}
+
+    _purge_old_jobs()
+    job_id, _ = _create_job()
+
+    command = ["bash", cli, "install-from-url", repository]
+    if branch:
+        command.append(branch)
+
+    thread = threading.Thread(
+        target=_run_subprocess_job,
+        args=(
+            job_id,
+            command,
+            env,
+            project_dir,
+            ["[INFO] Done", "Plugin successfully installed"],
+            True,
+        ),
+        daemon=True,
+    )
+    thread.start()
+    return job_id, None
 
 def _normalize_branch(branch):
     branch = (branch or "").strip()
@@ -595,6 +822,97 @@ def _ensure_auto_update_worker_started():
 def _bootstrap_auto_update_worker():
     _ensure_auto_update_worker_started()
 
+
+
+@plugin_manage_bp.route("/pluginmanager-api/catalog", methods=["GET"])
+def get_plugin_catalog():
+    force_refresh = request.args.get("refresh", "").lower() in ("1", "true", "yes")
+    catalog, from_cache, warning = _fetch_plugin_catalog(force_refresh=force_refresh)
+
+    if catalog is None:
+        return jsonify({"success": False, "error": warning or "Unable to load plugin catalog"}), 502
+
+    installed_ids = _catalog_installed_plugin_ids()
+    plugins = []
+    for entry in catalog["plugins"]:
+        plugin = dict(entry)
+        plugin["installed"] = plugin["id"] in installed_ids
+        plugins.append(plugin)
+
+    return jsonify(
+        {
+            "success": True,
+            "schema_version": catalog["schema_version"],
+            "updated_at": catalog["updated_at"],
+            "plugins": plugins,
+            "from_cache": from_cache,
+            "warning": warning,
+        }
+    )
+
+
+@plugin_manage_bp.route("/pluginmanager-api/catalog/refresh", methods=["POST"])
+def refresh_plugin_catalog():
+    catalog, from_cache, warning = _fetch_plugin_catalog(force_refresh=True)
+
+    if catalog is None:
+        return jsonify({"success": False, "error": warning or "Unable to refresh plugin catalog"}), 502
+
+    installed_ids = _catalog_installed_plugin_ids()
+    plugins = []
+    for entry in catalog["plugins"]:
+        plugin = dict(entry)
+        plugin["installed"] = plugin["id"] in installed_ids
+        plugins.append(plugin)
+
+    return jsonify(
+        {
+            "success": True,
+            "updated_at": catalog["updated_at"],
+            "plugins": plugins,
+            "from_cache": from_cache,
+            "warning": warning,
+        }
+    )
+
+
+@plugin_manage_bp.route("/pluginmanager-api/catalog/install", methods=["POST"])
+def install_catalog_plugin():
+    data = request.get_json(silent=True) or {}
+    plugin_id = (data.get("plugin_id") or "").strip()
+
+    if not _CATALOG_ID_RE.fullmatch(plugin_id):
+        return jsonify({"success": False, "error": "A valid catalog plugin_id is required"}), 400
+
+    catalog, _, warning = _fetch_plugin_catalog(force_refresh=False)
+    if catalog is None:
+        return jsonify({"success": False, "error": warning or "Unable to load plugin catalog"}), 502
+
+    entry = next((item for item in catalog["plugins"] if item["id"] == plugin_id), None)
+    if not entry:
+        return jsonify({"success": False, "error": "Plugin was not found in the catalog"}), 404
+
+    if plugin_id in _catalog_installed_plugin_ids():
+        return jsonify({"success": False, "error": "This plugin is already installed"}), 409
+
+    allowed, repository = _catalog_repository_is_allowed(entry["repository"])
+    if not allowed:
+        logger.error("Catalog entry %s failed repository validation", plugin_id)
+        return jsonify({"success": False, "error": "Catalog repository is not allowed"}), 400
+
+    job_id, error = _start_repository_install_job(repository, entry.get("branch"))
+    if error:
+        return jsonify({"success": False, "error": error}), 500
+
+    return jsonify(
+        {
+            "success": True,
+            "job_id": job_id,
+            "plugin_id": plugin_id,
+            "plugin_name": entry["name"],
+            "reload_on_success": False,
+        }
+    )
 
 @plugin_manage_bp.route("/pluginmanager-api/install", methods=["POST"])
 def install_plugin():

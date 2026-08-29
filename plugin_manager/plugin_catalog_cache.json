@@ -1,0 +1,463 @@
+{
+  "catalog": {
+    "plugins": [
+      {
+        "branch": "main",
+        "category": "Home & Self-Hosted",
+        "description": "Pi-hole status plugin for InkyPi.",
+        "featured": true,
+        "homepage": "https://github.com/Shadal18/inkypi-pihole",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-pihole/main/icon.png",
+        "id": "pihole",
+        "min_inkypi_version": "0.0.0",
+        "name": "Pi-hole",
+        "repository": "https://github.com/Shadal18/inkypi-pihole",
+        "tags": [
+          "pihole",
+          "dns",
+          "network",
+          "privacy"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "Media & Entertainment",
+        "description": "Displays upcoming and popular movies from TMDB.",
+        "featured": true,
+        "homepage": "https://github.com/Shadal18/inkypi-tmdb-movie-radar",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-tmdb-movie-radar/main/icon.png",
+        "id": "tmdb_movie_radar",
+        "min_inkypi_version": "0.0.0",
+        "name": "TMDB Movie Radar",
+        "repository": "https://github.com/Shadal18/inkypi-tmdb-movie-radar",
+        "tags": [
+          "movies",
+          "tmdb",
+          "entertainment"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "Home & Self-Hosted",
+        "description": "AdGuard Home plugin for InkyPi.",
+        "featured": false,
+        "homepage": "https://github.com/Shadal18/inkypi-adguard-home",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-adguard-home/main/icon.png",
+        "id": "adguard_home",
+        "min_inkypi_version": "0.0.0",
+        "name": "AdGuard Home",
+        "repository": "https://github.com/Shadal18/inkypi-adguard-home",
+        "tags": [
+          "adguard",
+          "dns",
+          "network",
+          "privacy"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "Scheduling & Calendar",
+        "description": "CalDAV calendar plugin for InkyPi.",
+        "featured": false,
+        "homepage": "https://github.com/Shadal18/inkypi-caldav-calendar",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-caldav-calendar/main/icon.png",
+        "id": "caldav_calendar",
+        "min_inkypi_version": "0.0.0",
+        "name": "CalDAV Calendar",
+        "repository": "https://github.com/Shadal18/inkypi-caldav-calendar",
+        "tags": [
+          "caldav",
+          "calendar",
+          "schedule"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "System & Hardware",
+        "description": "Connection status plugin for InkyPi.",
+        "featured": false,
+        "homepage": "https://github.com/Shadal18/inkypi-connection-status",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-connection-status/main/icon.png",
+        "id": "connection_status",
+        "min_inkypi_version": "0.0.0",
+        "name": "Connection Status",
+        "repository": "https://github.com/Shadal18/inkypi-connection-status",
+        "tags": [
+          "connection",
+          "network",
+          "status"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "Information",
+        "description": "Country population plugin for InkyPi.",
+        "featured": false,
+        "homepage": "https://github.com/Shadal18/inkypi-country-population",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-country-population/main/icon.png",
+        "id": "country_population",
+        "min_inkypi_version": "0.0.0",
+        "name": "Country Population",
+        "repository": "https://github.com/Shadal18/inkypi-country-population",
+        "tags": [
+          "country",
+          "population",
+          "information"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "Information",
+        "description": "Cryptocurrency price plugin for InkyPi.",
+        "featured": false,
+        "homepage": "https://github.com/Shadal18/inkypi-crypto-price",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-crypto-price/main/icon.png",
+        "id": "crypto_price",
+        "min_inkypi_version": "0.0.0",
+        "name": "Crypto Price",
+        "repository": "https://github.com/Shadal18/inkypi-crypto-price",
+        "tags": [
+          "crypto",
+          "cryptocurrency",
+          "price"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "Media & Entertainment",
+        "description": "Dad Joke plugin for InkyPi.",
+        "featured": false,
+        "homepage": "https://github.com/Shadal18/inkypi-dad-joke",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-dad-joke/main/icon.png",
+        "id": "dad_joke",
+        "min_inkypi_version": "0.0.0",
+        "name": "Dad Joke",
+        "repository": "https://github.com/Shadal18/inkypi-dad-joke",
+        "tags": [
+          "jokes",
+          "fun",
+          "entertainment"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "Photos",
+        "description": "Google Photos album plugin for InkyPi.",
+        "featured": false,
+        "homepage": "https://github.com/Shadal18/inkypi-google-photos-album",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-google-photos-album/main/icon.png",
+        "id": "google_photos_album",
+        "min_inkypi_version": "0.0.0",
+        "name": "Google Photos Album",
+        "repository": "https://github.com/Shadal18/inkypi-google-photos-album",
+        "tags": [
+          "google-photos",
+          "photos",
+          "album"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "Media & Entertainment",
+        "description": "Horoscope plugin for InkyPi.",
+        "featured": false,
+        "homepage": "https://github.com/Shadal18/inkypi-horoscope",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-horoscope/main/icon.png",
+        "id": "horoscope",
+        "min_inkypi_version": "0.0.0",
+        "name": "Horoscope",
+        "repository": "https://github.com/Shadal18/inkypi-horoscope",
+        "tags": [
+          "horoscope",
+          "zodiac",
+          "entertainment"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "Home & Self-Hosted",
+        "description": "Hubitat status plugin for InkyPi.",
+        "featured": false,
+        "homepage": "https://github.com/Shadal18/inkypi-hubitat-status",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-hubitat-status/main/icon.png",
+        "id": "hubitat_status",
+        "min_inkypi_version": "0.0.0",
+        "name": "Hubitat Status",
+        "repository": "https://github.com/Shadal18/inkypi-hubitat-status",
+        "tags": [
+          "hubitat",
+          "smart-home",
+          "status"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "Photos",
+        "description": "Displays an image from a URL on InkyPi.",
+        "featured": false,
+        "homepage": "https://github.com/Shadal18/inkypi-image-url",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-image-url/main/icon.png",
+        "id": "image_url",
+        "min_inkypi_version": "0.0.0",
+        "name": "Image URL",
+        "repository": "https://github.com/Shadal18/inkypi-image-url",
+        "tags": [
+          "image",
+          "url",
+          "photos",
+          "display"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "Photos",
+        "description": "Immich photo album plugin for InkyPi.",
+        "featured": false,
+        "homepage": "https://github.com/Shadal18/inkypi-immich-photos-album",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-immich-photos-album/main/icon.png",
+        "id": "immich_photos_album",
+        "min_inkypi_version": "0.0.0",
+        "name": "Immich Photos Album",
+        "repository": "https://github.com/Shadal18/inkypi-immich-photos-album",
+        "tags": [
+          "immich",
+          "photos",
+          "album"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "System & Hardware",
+        "description": "Klipper Farm Status plugin for InkyPi.",
+        "featured": false,
+        "homepage": "https://github.com/Shadal18/inkypi-klipper-farm-status",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-klipper-farm-status/main/icon.png",
+        "id": "klipper_farm_status",
+        "min_inkypi_version": "0.0.0",
+        "name": "Klipper Farm Status",
+        "repository": "https://github.com/Shadal18/inkypi-klipper-farm-status",
+        "tags": [
+          "klipper",
+          "3d-printing",
+          "status"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "Sports",
+        "description": "MLB team schedule plugin for InkyPi.",
+        "featured": false,
+        "homepage": "https://github.com/Shadal18/inkypi-mlb-team-schedule",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-mlb-team-schedule/main/icon.png",
+        "id": "mlb_team_schedule",
+        "min_inkypi_version": "0.0.0",
+        "name": "MLB Team Schedule",
+        "repository": "https://github.com/Shadal18/inkypi-mlb-team-schedule",
+        "tags": [
+          "mlb",
+          "baseball",
+          "schedule",
+          "sports"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "Sports",
+        "description": "NFL team schedule plugin for InkyPi.",
+        "featured": false,
+        "homepage": "https://github.com/Shadal18/inkypi-nfl-team-schedule",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-nfl-team-schedule/main/icon.png",
+        "id": "nfl_team_schedule",
+        "min_inkypi_version": "0.0.0",
+        "name": "NFL Team Schedule",
+        "repository": "https://github.com/Shadal18/inkypi-nfl-team-schedule",
+        "tags": [
+          "nfl",
+          "football",
+          "schedule",
+          "sports"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "Sports",
+        "description": "NHL team schedule plugin for InkyPi.",
+        "featured": false,
+        "homepage": "https://github.com/Shadal18/inkypi-nhl-team-schedule",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-nhl-team-schedule/main/icon.png",
+        "id": "nhl_team_schedule",
+        "min_inkypi_version": "0.0.0",
+        "name": "NHL Team Schedule",
+        "repository": "https://github.com/Shadal18/inkypi-nhl-team-schedule",
+        "tags": [
+          "nhl",
+          "hockey",
+          "schedule",
+          "sports"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "System & Hardware",
+        "description": "PeaNUT uninterruptible power supply status plugin for InkyPi.",
+        "featured": false,
+        "homepage": "https://github.com/Shadal18/inkypi-peanut-ups-status",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-peanut-ups-status/main/icon.png",
+        "id": "peanut_ups_status",
+        "min_inkypi_version": "0.0.0",
+        "name": "PeaNUT UPS Status",
+        "repository": "https://github.com/Shadal18/inkypi-peanut-ups-status",
+        "tags": [
+          "ups",
+          "peanut",
+          "power",
+          "status"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "Home & Self-Hosted",
+        "description": "pfSense status plugin for InkyPi.",
+        "featured": false,
+        "homepage": "https://github.com/Shadal18/inkypi-pfsense-status",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-pfsense-status/main/icon.png",
+        "id": "pfsense_status",
+        "min_inkypi_version": "0.0.0",
+        "name": "pfSense Status",
+        "repository": "https://github.com/Shadal18/inkypi-pfsense-status",
+        "tags": [
+          "pfsense",
+          "network",
+          "firewall",
+          "status"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "Media & Entertainment",
+        "description": "Displays currently playing Plex media in InkyPi.",
+        "featured": false,
+        "homepage": "https://github.com/Shadal18/inkypi-plex-now-playing",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-plex-now-playing/main/icon.png",
+        "id": "plex_now_playing",
+        "min_inkypi_version": "0.0.0",
+        "name": "Plex Now Playing",
+        "repository": "https://github.com/Shadal18/inkypi-plex-now-playing",
+        "tags": [
+          "plex",
+          "media",
+          "now-playing"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "Media & Entertainment",
+        "description": "Plex server health plugin for InkyPi.",
+        "featured": false,
+        "homepage": "https://github.com/Shadal18/inkypi-plex-server-health",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-plex-server-health/main/icon.png",
+        "id": "plex_server_health",
+        "min_inkypi_version": "0.0.0",
+        "name": "Plex Server Health",
+        "repository": "https://github.com/Shadal18/inkypi-plex-server-health",
+        "tags": [
+          "plex",
+          "media",
+          "server",
+          "monitoring"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "Home & Self-Hosted",
+        "description": "Proxmox performance monitoring plugin for InkyPi.",
+        "featured": false,
+        "homepage": "https://github.com/Shadal18/inkypi-proxmox-performance",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-proxmox-performance/main/icon.png",
+        "id": "proxmox_performance",
+        "min_inkypi_version": "0.0.0",
+        "name": "Proxmox Performance",
+        "repository": "https://github.com/Shadal18/inkypi-proxmox-performance",
+        "tags": [
+          "proxmox",
+          "virtualization",
+          "monitoring"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "System & Hardware",
+        "description": "Displays active Spoolman spools in InkyPi.",
+        "featured": false,
+        "homepage": "https://github.com/Shadal18/inkypi-spoolman-active-spools",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-spoolman-active-spools/main/icon.png",
+        "id": "spoolman_active_spools",
+        "min_inkypi_version": "0.0.0",
+        "name": "Spoolman Active Spools",
+        "repository": "https://github.com/Shadal18/inkypi-spoolman-active-spools",
+        "tags": [
+          "spoolman",
+          "filament",
+          "3d-printing"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "System & Hardware",
+        "description": "Displays low Spoolman filament stock in InkyPi.",
+        "featured": false,
+        "homepage": "https://github.com/Shadal18/inkypi-spoolman-low-stock",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-spoolman-low-stock/main/icon.png",
+        "id": "spoolman_low_stock",
+        "min_inkypi_version": "0.0.0",
+        "name": "Spoolman Low Stock",
+        "repository": "https://github.com/Shadal18/inkypi-spoolman-low-stock",
+        "tags": [
+          "spoolman",
+          "filament",
+          "3d-printing",
+          "inventory"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "Information",
+        "description": "Tides and currents schedule plugin for InkyPi.",
+        "featured": false,
+        "homepage": "https://github.com/Shadal18/inkypi-tides-and-currents-schedule",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-tides-and-currents-schedule/main/icon.png",
+        "id": "tides_and_currents_schedule",
+        "min_inkypi_version": "0.0.0",
+        "name": "Tides and Currents Schedule",
+        "repository": "https://github.com/Shadal18/inkypi-tides-and-currents-schedule",
+        "tags": [
+          "tides",
+          "currents",
+          "marine",
+          "schedule"
+        ]
+      },
+      {
+        "branch": "main",
+        "category": "Information",
+        "description": "Displays a YouTube channel subscriber count in InkyPi.",
+        "featured": false,
+        "homepage": "https://github.com/Shadal18/inkypi-youtube-subscriber-count",
+        "icon_url": "https://raw.githubusercontent.com/Shadal18/inkypi-youtube-subscriber-count/main/icon.png",
+        "id": "youtube_subscriber_count",
+        "min_inkypi_version": "0.0.0",
+        "name": "YouTube Subscriber Count",
+        "repository": "https://github.com/Shadal18/inkypi-youtube-subscriber-count",
+        "tags": [
+          "youtube",
+          "subscribers",
+          "channel",
+          "statistics"
+        ]
+      }
+    ],
+    "schema_version": 1,
+    "updated_at": "2026-08-29T00:00:00Z"
+  },
+  "fetched_at": 1788037026.1440802
+}
